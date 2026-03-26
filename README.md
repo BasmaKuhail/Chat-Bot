@@ -8,3 +8,9 @@ The application is designed to evolve from a simple chat interface into a more a
 🔄 Message-based conversation flow
 ⏳ Loading and error handling states
 📱 Responsive, full-screen layout
+
+Tech Stack:
+Next.js 
+React
+AI API (LLMs)
+Tailwind CSS 
