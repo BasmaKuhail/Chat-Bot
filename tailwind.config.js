@@ -19,7 +19,8 @@ module.exports = {
                 20:'#E0E3E4'
             },
             blue:{
-              10: '#2563EB'
+              10: '#2563EB',
+              20:'#0050D5'
             }
         },
         fontSize: {
