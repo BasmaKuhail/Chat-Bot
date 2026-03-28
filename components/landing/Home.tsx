@@ -10,9 +10,8 @@ export default function Home(){
       <div className="flex flex-row ">
         <SideNav />
         
-        <div className="flex flex-col pt-10 px-10 gap-4 ml-70">
+        <div className="w-full flex flex-col pt-10 px-10 gap-4 ml-70">
           <ChatContainer/>
-          <Input/>
         </div>
       </div>
       
