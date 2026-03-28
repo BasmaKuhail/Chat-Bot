@@ -45,9 +45,9 @@ export default function ChatContainer(){
                 <div key={i}>
                     {msg.type === "prompt" ? (
                         <div className="flex justify-end w-full">
-                            <Prompt text={msg.text}/>
+                            <div className="w-[70%] flex justify-end"><Prompt text={msg.text}/></div>
                         </div>
-                    ): <Response  text={msg.text}/>}
+                    ): <div className="w-[70%]"><Response  text={msg.text}/></div>}
                 </div>
             ))}
             <Input onSend={handleOnSend}/>
