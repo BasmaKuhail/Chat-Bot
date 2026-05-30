@@ -32,7 +32,7 @@ export default function SideNav(){
             </Btn>
             <div className="flex flex-col gap-2">
                 {SideNavBtns.map((btn)=> 
-                    <SideNavItem isSelected={btn.isSelected}>
+                    <SideNavItem key={btn.title} isSelected={btn.isSelected}>
                         <div className="flex flex-row gap-3 items-center justify-center cursor-pointer">
                             {btn.image}
                             {btn.title}
