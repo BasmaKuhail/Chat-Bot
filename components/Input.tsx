@@ -1,7 +1,7 @@
 import Attach from "@/public/icons/Attach"
 import SendBtn from "./SendBtn"
 import { useRef, useState } from "react";
-import Prompt from "./chat/Prompt";
+
 export default function Input ({onSend}:{onSend: (userText: string) => void}){
     const [userInput, setUserInput] = useState("");
     
