@@ -38,7 +38,7 @@ export default function Input({ label, type, value, placeholder, onChange, minLe
                         aria-label={isPasswordVisible ? "Hide password" : "Show password"}
                     >
                         <Image
-                            src={isPasswordVisible ? unshowPassIcon : showPassIcon}
+                            src={isPasswordVisible ?  showPassIcon : unshowPassIcon}
                             alt=""
                             width={20}
                             height={20}
