@@ -10,9 +10,10 @@ type InputProps = {
     placeholder: string;
     onChange: (value: string) => void;
     minLength?: number;
+    error?: string;
 };
 
-export default function Input({ label, type, value, placeholder, onChange, minLength }: InputProps) {
+export default function Input({ label, type, value, placeholder, onChange, minLength, error }: InputProps) {
     const [isPasswordVisible, setIsPasswordVisible] = useState(false);
     const isPasswordField = type === "password";
     const inputType = isPasswordField && isPasswordVisible ? "text" : type;
@@ -27,7 +28,8 @@ export default function Input({ label, type, value, placeholder, onChange, minLe
                     onChange={(event) => onChange(event.target.value)}
                     required
                     minLength={minLength}
-                    className={`w-full rounded-[12px] border border-gray-200 bg-white-0 px-4 py-3 text-gray-800 outline-none focus:border-blue-10 ${isPasswordField ? "pr-12" : ""}`}
+                    aria-invalid={Boolean(error)}
+                    className={`w-full rounded-[12px] border bg-white-0 px-4 py-3 text-gray-800 outline-none focus:border-blue-10 ${error ? "border-red-400" : "border-gray-200"} ${isPasswordField ? "pr-12" : ""}`}
                     placeholder={placeholder}
                 />
                 {isPasswordField && (
@@ -46,6 +48,7 @@ export default function Input({ label, type, value, placeholder, onChange, minLe
                     </button>
                 )}
             </div>
+            {error && <p className="text-xs font-medium text-red-500">{error}</p>}
         </label>
     );
 }

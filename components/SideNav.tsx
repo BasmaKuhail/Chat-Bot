@@ -2,21 +2,25 @@ import PlusIcon from "@/public/icons/Plus";
 import ChatIcon from "@/public/icons/Chat";
 import HistoryIcon from "@/public/icons/History";
 import ArchiveIcon from "@/public/icons/Archived";
+import Profile from "@/public/icons/profile";
 
 import Btn from "./Btn";
 import SideNavItem from "./SideNavItem";
 import Image from "next/image";
 import logo from "@/public/images/logo.png"
 import { useChat } from "@/context/chatContext";
+import { useRouter } from "next/router";
 
 
 export default function SideNav(){
     const {resetChat} = useChat();
 
+    const route = useRouter();
     const SideNavBtns = [
         {title: "Current Chat" , image: <ChatIcon className="text-blue-10"/>, isSelected:true},
-        {title: "History" , image: <HistoryIcon/>, isSelected:false},
-        {title: "Archive" , image: <ArchiveIcon/>, isSelected:false},
+        {title: "Create Account" , image: <Profile/>, isSelected:false, onclick:()=>{route.push("/auth")}},
+        {title: "History" , image: <HistoryIcon/>, isSelected:false, onclick:()=>{route.push("/chat/history")}},
+        {title: "Archive" , image: <ArchiveIcon/>, isSelected:false, onclick:()=>{route.push("/chat/archive")}},
     ]
     
     return(
@@ -33,7 +37,7 @@ export default function SideNav(){
             <div className="flex flex-col gap-2">
                 {SideNavBtns.map((btn)=> 
                     <SideNavItem key={btn.title} isSelected={btn.isSelected}>
-                        <div className="flex flex-row gap-3 items-center justify-center cursor-pointer">
+                        <div className="flex flex-row gap-3 items-center justify-center cursor-pointer" onClick={btn.onclick}>
                             {btn.image}
                             {btn.title}
                         </div>
