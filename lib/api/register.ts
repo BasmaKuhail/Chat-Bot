@@ -13,6 +13,8 @@ export function signUpUser({ username, email, password }: SignUpUserParams) {
     options: {
       data: {
         username,
+        name: username,
+        display_name: username,
       },
     },
   });

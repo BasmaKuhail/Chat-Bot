@@ -1,9 +1,14 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { signUpUser } from "@/lib/api/register";
-import { isRegisterUser, isValidEmail } from "@/lib/validations/register";
+import {
+  isRegisterUser,
+  isValidEmail,
+  normalizeUsername,
+} from "@/lib/validations/register";
 
 type RegisterResponse = {
   message: string;
+  requiresEmailConfirmation?: boolean;
   user?: {
     id: string;
     username: string;
@@ -19,18 +24,24 @@ export default async function handler(
     res.setHeader("Allow", "POST");
     return res.status(405).json({ message: "Method Not Allowed" });
   }
-  console.log("Register request body:", req.body);
+
   if (!isRegisterUser(req.body)) {
     return res.status(400).json({ message: "Invalid user data." });
   }
 
-  const username = req.body.username.trim();
+  const username = normalizeUsername(req.body.username);
   const email = req.body.email.trim().toLowerCase();
   const password = req.body.password;
   const confirmPassword = req.body.confirmPassword;
 
-  if (!username || username === "@") {
+  if (!username) {
     return res.status(400).json({ message: "Username is required." });
+  }
+
+  if (!/^[a-zA-Z0-9_]{3,30}$/.test(username)) {
+    return res.status(400).json({
+      message: "Use 3-30 letters, numbers, or underscores.",
+    });
   }
 
   if (!email || !isValidEmail(email)) {
@@ -57,16 +68,20 @@ export default async function handler(
     username,
   });
 
-if (error) {
-  console.error("Supabase signup error:", error);
+  if (error) {
+    console.error("Supabase signup error:", {
+      message: error.message,
+      status: error.status,
+      code: error.code,
+    });
 
-  const message =
-    error.message === "email rate limit exceeded"
-      ? "Too many signup emails were sent. Please try again later."
-      : error.message;
+    const message =
+      error.message === "email rate limit exceeded"
+        ? "Too many signup emails were sent. Please try again later."
+        : error.message;
 
-  return res.status(400).json({ message });
-}
+    return res.status(400).json({ message });
+  }
 
   if (!data.user) {
     return res.status(500).json({
@@ -75,7 +90,10 @@ if (error) {
   }
 
   return res.status(201).json({
-    message: "Account created successfully.",
+    message: data.session
+      ? "Account created successfully."
+      : "Account created. Please confirm your email before logging in.",
+    requiresEmailConfirmation: !data.session,
     user: {
       id: data.user.id,
       username,
