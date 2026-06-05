@@ -108,7 +108,7 @@ export default function ChatHistoryPage() {
     <div className="flex min-h-screen w-full flex-col bg-white-10">
       <div className="flex flex-row">
         <SideNav />
-        <main className="ml-70 flex w-full flex-col gap-6 px-10 py-10">
+        <main className="flex w-full flex-col gap-6 px-4 py-20 md:ml-70 md:px-10 md:py-10">
           <div className="flex flex-col gap-1">
             <h1 className="text-36px font-bold text-blue-20">Chat History</h1>
             <p className="text-sm text-gray-500">

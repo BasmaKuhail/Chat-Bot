@@ -27,6 +27,7 @@ export default function SideNav(){
     const { showToast } = useToast();
     const [isLoggedIn, setIsLoggedIn] = useState(false);
     const [isCheckingAuth, setIsCheckingAuth] = useState(true);
+    const [isMobileNavOpen, setIsMobileNavOpen] = useState(false);
     const route = useRouter();
 
     useEffect(() => {
@@ -60,8 +61,13 @@ export default function SideNav(){
 
     const isSelected = (path: string) => route.pathname === path;
 
+    const closeMobileNav = () => {
+        setIsMobileNavOpen(false);
+    };
+
     const handleNewChat = () => {
         resetChat();
+        closeMobileNav();
         route.push("/");
     };
 
@@ -75,11 +81,17 @@ export default function SideNav(){
 
             setIsLoggedIn(false);
             resetChat();
+            closeMobileNav();
             showToast({ type: "success", message: "Logged out successfully." });
             route.push("/auth/login");
         } catch {
             showToast({ type: "error", message: "Logout failed. Please try again." });
         }
+    };
+
+    const handleNavigate = (path: string) => {
+        closeMobileNav();
+        route.push(path);
     };
 
     const sideNavBtns: NavItem[] = [
@@ -88,21 +100,21 @@ export default function SideNav(){
             image: <ChatIcon className="text-current"/>,
             path: "/",
             isSelected: isSelected("/"),
-            onClick: () => route.push("/"),
+            onClick: () => handleNavigate("/"),
         },
         {
             title: "History",
             image: <HistoryIcon className="text-current"/>,
             path: "/chat/history",
             isSelected: isSelected("/chat/history"),
-            onClick: () => route.push("/chat/history"),
+            onClick: () => handleNavigate("/chat/history"),
         },
         {
             title: "Archive",
             image: <ArchiveIcon className="text-current"/>,
             path: "/chat/archive",
             isSelected: isSelected("/chat/archive"),
-            onClick: () => route.push("/chat/archive"),
+            onClick: () => handleNavigate("/chat/archive"),
         },
     ];
 
@@ -119,31 +131,66 @@ export default function SideNav(){
                 image: <Profile className="text-current"/>,
                 path: "/auth",
                 isSelected: isSelected("/auth") || isSelected("/auth/login"),
-                onClick: () => route.push("/auth"),
+                onClick: () => handleNavigate("/auth"),
             }
         );
     }
     
     return(
-        <div className="bg-white-5 flex flex-col p-2 pl-20 shadow-sm p-4 pr-6 min-h-screen pt-10 opacity:50 gap-10 fixed left-0">
-            <Image src={logo} alt="logo" width={150}/> 
-            <Btn 
-                onClick={handleNewChat}
+        <>
+            <button
+                type="button"
+                onClick={() => setIsMobileNavOpen(true)}
+                className="fixed left-4 top-4 z-40 flex h-11 w-11 cursor-pointer flex-col items-center justify-center gap-1.5 rounded-[8px] bg-white-0 text-gray-500 shadow-md md:hidden"
+                aria-label="Open navigation"
             >
-                <div className="flex flex-row gap-3 items-center justify-start w-full">
-                    <PlusIcon className="text-white-0"/>
-                    New Chat
+                <span className="h-0.5 w-5 rounded-full bg-current" />
+                <span className="h-0.5 w-5 rounded-full bg-current" />
+                <span className="h-0.5 w-5 rounded-full bg-current" />
+            </button>
+
+            {isMobileNavOpen && (
+                <button
+                    type="button"
+                    className="fixed inset-0 z-40 bg-black/30 md:hidden"
+                    onClick={closeMobileNav}
+                    aria-label="Close navigation"
+                />
+            )}
+
+            <div
+                className={`fixed left-0 top-0 z-50 flex min-h-screen w-72 flex-col gap-8 bg-white-5 p-4 pt-8 shadow-lg transition-transform duration-200 md:w-70 md:translate-x-0 md:gap-10 md:pl-20 md:pr-6 md:pt-10 ${
+                    isMobileNavOpen ? "translate-x-0" : "-translate-x-full"
+                }`}
+            >
+                <div className="flex items-center justify-between">
+                    <Image src={logo} alt="logo" width={150}/>
+                    <button
+                        type="button"
+                        onClick={closeMobileNav}
+                        className="flex h-9 w-9 cursor-pointer items-center justify-center rounded-[8px] text-xl font-semibold text-gray-500 hover:bg-gray-100 md:hidden"
+                        aria-label="Close navigation"
+                    >
+                        x
+                    </button>
                 </div>
-            </Btn>
-            <div className="flex flex-col gap-2">
-                {sideNavBtns.map((btn)=> 
-                    <SideNavItem key={btn.title} isSelected={btn.isSelected} onClick={btn.onClick}>
-                        {btn.image}
-                        {btn.title}
-                    </SideNavItem>
-                )}
+                <Btn 
+                    onClick={handleNewChat}
+                >
+                    <div className="flex w-full flex-row items-center justify-start gap-3">
+                        <PlusIcon className="text-white-0"/>
+                        New Chat
+                    </div>
+                </Btn>
+                <div className="flex flex-col gap-2">
+                    {sideNavBtns.map((btn)=> 
+                        <SideNavItem key={btn.title} isSelected={btn.isSelected} onClick={btn.onClick}>
+                            {btn.image}
+                            {btn.title}
+                        </SideNavItem>
+                    )}
+                </div>
             </div>
-            
-        </div>
+        </>
     )
 }

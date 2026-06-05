@@ -67,14 +67,14 @@ const handleOnSend = async (userText: string) => {
     }
 };
     return(
-        <div className="w-full flex flex-col gap-6 px-4 pb-40 md:px-10">
+        <div className="flex w-full flex-col gap-6 px-0 pb-40 md:px-10">
             {chat.map((msg, i) => (
                 <div key={i}>
                     {msg.type === "prompt" ? (
                         <div className="flex justify-end w-full">
-                            <div className="flex w-full max-w-[75%] justify-end"><Prompt text={msg.text}/></div>
+                            <div className="flex w-full max-w-[88%] justify-end md:max-w-[75%]"><Prompt text={msg.text}/></div>
                         </div>
-                    ): <div className="w-full max-w-[820px]"><Response  text={msg.text}/></div>}
+                    ): <div className="w-full max-w-[820px]"><Response text={msg.text}/></div>}
                 </div>
             ))}
             {isLoading && (
