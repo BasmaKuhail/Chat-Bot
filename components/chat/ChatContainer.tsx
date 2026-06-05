@@ -41,7 +41,7 @@ const handleOnSend = async (userText: string) => {
             typeof data.saveError === "string" ? data.saveError : undefined;
 
         if (saveError) {
-            showToast({ type: "error", message: `Chat was not saved: ${saveError}` });
+            showToast({ type: res.ok ? "info" : "error", message: saveError });
         } else if (!res.ok) {
             showToast({ type: "error", message: reply });
         }

@@ -1,7 +1,6 @@
 import PlusIcon from "@/public/icons/Plus";
 import ChatIcon from "@/public/icons/Chat";
 import HistoryIcon from "@/public/icons/History";
-import ArchiveIcon from "@/public/icons/Archived";
 import Profile from "@/public/icons/profile";
 
 import Btn from "./Btn";
@@ -109,13 +108,13 @@ export default function SideNav(){
             isSelected: isSelected("/chat/history"),
             onClick: () => handleNavigate("/chat/history"),
         },
-        {
-            title: "Archive",
-            image: <ArchiveIcon className="text-current"/>,
-            path: "/chat/archive",
-            isSelected: isSelected("/chat/archive"),
-            onClick: () => handleNavigate("/chat/archive"),
-        },
+        // {
+        //     title: "Archive",
+        //     image: <ArchiveIcon className="text-current"/>,
+        //     path: "/chat/archive",
+        //     isSelected: isSelected("/chat/archive"),
+        //     onClick: () => handleNavigate("/chat/archive"),
+        // },
     ];
 
     if (!isCheckingAuth) {

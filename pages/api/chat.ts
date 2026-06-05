@@ -99,10 +99,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
 
   const accessToken = req.cookies["sb-access-token"];
 
-  if (!accessToken) {
-    return res.status(401).json({ reply: "Please log in before sending chat messages." });
-  }
-
   // OpenRouter uses an OpenAI-compatible API, so the official OpenAI client can call it.
   const openRouter = new OpenAI({
     apiKey,
@@ -146,16 +142,25 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
     return res.status(502).json({ reply: "OpenRouter returned an empty response." });
   }
 
+  const reply = text;
+
+  if (!accessToken) {
+    return res.status(200).json({
+      reply,
+      saveError: "Log in to save this chat to your history.",
+    });
+  }
+
   try {
     const savedChat = await persistChatMessages({
       accessToken,
       chatId,
       prompt: message.trim(),
-      reply: text,
+      reply,
     });
 
     // Successful path: send the assistant text back to the frontend.
-    return res.status(200).json({ reply: text, chatId: savedChat.chatId });
+    return res.status(200).json({ reply, chatId: savedChat.chatId });
   } catch (error: unknown) {
     const saveError = getErrorMessage(error);
 
@@ -165,7 +170,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
     console.error("--- CHAT PERSISTENCE ERROR END ---");
 
     return res.status(500).json({
-      reply: text,
+      reply,
       saveError:
         process.env.NODE_ENV === "production"
           ? "The AI replied, but the chat could not be saved."
