@@ -159,7 +159,7 @@ export default function SideNav(){
             )}
 
             <div
-                className={`fixed left-0 top-0 z-50 flex min-h-screen w-72 flex-col gap-8 bg-white-5 p-4 pt-8 shadow-lg transition-transform duration-200 md:w-70 md:translate-x-0 md:gap-10 md:pl-20 md:pr-6 md:pt-10 ${
+                className={`fixed left-0 top-0 z-50 flex min-h-screen w-72 flex-col gap-8 bg-white-5 p-4 pt-8 shadow-lg transition-transform duration-200 md:w-80 md:translate-x-0 md:gap-10 md:pl-20 md:pr-6 md:pt-10 ${
                     isMobileNavOpen ? "translate-x-0" : "-translate-x-full"
                 }`}
             >
@@ -177,9 +177,9 @@ export default function SideNav(){
                 <Btn 
                     onClick={handleNewChat}
                 >
-                    <div className="flex w-full flex-row items-center justify-start gap-3">
-                        <PlusIcon className="text-white-0"/>
-                        New Chat
+                    <div className="flex w-full flex-row items-center justify-start gap-3 whitespace-nowrap">
+                        <PlusIcon className="shrink-0 text-white-0"/>
+                        <span>New Chat</span>
                     </div>
                 </Btn>
                 <div className="flex flex-col gap-2">
