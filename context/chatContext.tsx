@@ -4,6 +4,8 @@ import { ReactNode, useContext, useState, createContext } from "react";
 type ChatContextValue = {
     chat: Message[];
     setChat: React.Dispatch<React.SetStateAction<Message[]>>;
+    currentChatId: string | null;
+    setCurrentChatId: React.Dispatch<React.SetStateAction<string | null>>;
     resetChat: () => void;
 };
 
@@ -17,12 +19,14 @@ const ChatContext = createContext<ChatContextValue | null>(null);
 
 export default function ChatProvider({children}:{children:ReactNode}){
     const [chat, setChat] = useState<Message[]>(initialChat);
+    const [currentChatId, setCurrentChatId] = useState<string | null>(null);
     
     const resetChat = () => {
         setChat(initialChat)
+        setCurrentChatId(null)
     }
     return(
-        <ChatContext.Provider value={{chat, setChat, resetChat}}>
+        <ChatContext.Provider value={{chat, setChat, currentChatId, setCurrentChatId, resetChat}}>
             {children}  
         </ChatContext.Provider>
 
