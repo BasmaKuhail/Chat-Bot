@@ -1,7 +1,6 @@
 import OpenAI from "openai";
 import type { NextApiRequest, NextApiResponse } from "next";
 
-// The JSON shape this API route sends back to the frontend.
 // ChatContainer expects a "reply" string and displays it in the chat.
 type ChatResponse = {
   reply: string;
@@ -33,7 +32,6 @@ function getUserFacingError(error: unknown) {
   const status = getErrorStatus(error);
   const message = getErrorMessage(error);
 
-  // 429 usually means the account/key has hit a request limit or quota limit.
   if (status === 429 || message.includes("Too Many Requests") || message.includes("rate limit")) {
     return {
       status: 429,
@@ -41,15 +39,13 @@ function getUserFacingError(error: unknown) {
     };
   }
 
-  // 401/403 usually means the API key is missing, wrong, disabled, or not allowed.
   if (status === 401 || status === 403) {
     return {
       status,
-      reply: "OpenRouter authentication failed. Check that OPEN_ROUTER_AI_API_KEY is valid and has access to the selected model.",
+      reply: "OpenRouter authentication failed. Check that the key is valid and has access to the selected model.",
     };
   }
 
-  // OpenRouter returns 402 when the selected model needs credits the account does not have.
   if (status === 402) {
     return {
       status,
@@ -57,7 +53,6 @@ function getUserFacingError(error: unknown) {
     };
   }
 
-  // 404 can happen when OPEN_ROUTER_AI_MODEL is misspelled or unavailable.
   if (status === 404) {
     return {
       status,
@@ -65,7 +60,6 @@ function getUserFacingError(error: unknown) {
     };
   }
 
-  // Fallback for unexpected errors.
   return {
     status: 500,
     reply: "The AI service failed to respond. Please try again shortly.",
@@ -80,9 +74,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
     return res.status(405).json({ reply: "Method Not Allowed" });
   }
 
-  // Keep the API key on the server. It should never be sent to browser code.
-  // The second variable name is a fallback in case you prefer OpenRouter's common env name.
-  const apiKey = process.env.OPEN_ROUTER_AI_API_KEY ?? process.env.OPENROUTER_API_KEY;
+  const apiKey = process.env.OPENROUTER_API_KEY;
 
   if (!apiKey) {
     console.error("CRITICAL: API Key is missing from environment variables!");

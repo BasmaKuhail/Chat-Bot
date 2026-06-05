@@ -14,3 +14,5 @@ Next.js
 React
 AI API (LLMs)
 Tailwind CSS 
+
+Database design: https://dbdiagram.io/d/chatbot-6a1b362af15b4b0452385c49

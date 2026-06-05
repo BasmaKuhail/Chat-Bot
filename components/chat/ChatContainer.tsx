@@ -1,17 +1,15 @@
 import { useState } from "react";
 import Prompt from "./Prompt";
 import Response from "./Response";
-import { Message } from "@/types/messages";
 import Input from "../Input";
 import { useEffect, useRef } from "react"
+import { useChat } from "@/context/chatContext"
 
 export default function ChatContainer(){
-
-    const bottomRef = useRef<HTMLDivElement>(null)
-
+    const {chat, setChat} = useChat();
     
-    const [chat, setChat] = useState<Message[]>([{type:"response", text:"Welcome to BrainRot, I'm your AI agient, feel free to share your thoughts with me, I'm here to assist you :)"}])
-
+    const bottomRef = useRef<HTMLDivElement>(null)
+    
     useEffect(() => {
         bottomRef.current?.scrollIntoView({ behavior: "smooth" })
     }, [chat])
@@ -25,11 +23,11 @@ const handleOnSend = async (userText: string) => {
     setChat(prev => [...prev, { type: "prompt", text: userText }]);
 
     try {
-        const res = await fetch("/api/chat", { // This matches pages/api/chat.ts
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ message: userText }),
-});
+        const res = await fetch("/api/chat", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ message: userText }),
+        });
         
         const data = await res.json();
         const reply = data.reply || "Sorry, I encountered an error.";
