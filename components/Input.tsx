@@ -7,14 +7,14 @@ export default function Input ({onSend}:{onSend: (userText: string) => void}){
     
     const textareaRef = useRef<HTMLTextAreaElement | null>(null);
     return(
-        <div className="flex flex-col justify-end items-center gap-2 fixed bottom-0 left-80 w-[calc(100%-20rem)] bg-white-10 rounded-t-[12px] pb-4 px-10 pr-19">
-            <div className="w-full flex flex-row items-end justify-between bg-white-5 p-4 text-gray-500 gap-4 rounded-[10px]">
-                <div className="p-3 rounded-full bg-gray-100 hover:bg-gray-200">
+        <div className="fixed bottom-0 left-0 flex w-full flex-col items-center justify-end gap-2 rounded-t-[12px] bg-white-10 px-3 pb-4 md:left-80 md:w-[calc(100%-20rem)] md:px-10 md:pr-19">
+            <div className="flex w-full flex-row items-end justify-between gap-3 rounded-[10px] bg-white-5 p-3 text-gray-500 md:gap-4 md:p-4">
+                <div className="hidden rounded-full bg-gray-100 p-3 hover:bg-gray-200 sm:block">
                     <Attach/>
                 </div>
                 
                 <textarea  
-                    className="w-full resize-none overflow-hidden whitespace-pre-wrap break-words max-h-[200px] overflow-y-auto focus:outline-none" 
+                    className="max-h-[180px] w-full resize-none overflow-hidden whitespace-pre-wrap break-words overflow-y-auto text-sm focus:outline-none md:max-h-[200px] md:text-base" 
                     placeholder="Ask a question or provide research notes..." 
                     ref={textareaRef}
                     value={userInput}
@@ -46,7 +46,7 @@ export default function Input ({onSend}:{onSend: (userText: string) => void}){
                     }}
                 />
             </div>
-            <p className="text-14px text-gray-400">AI models can occasionally hallucinate. Please verify critical information.</p>
+            <p className="text-center text-xs text-gray-400 md:text-14px">AI models can occasionally hallucinate. Please verify critical information.</p>
         </div>
     )
 }
