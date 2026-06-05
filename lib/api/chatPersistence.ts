@@ -1,4 +1,4 @@
-import { createClient } from "@supabase/supabase-js";
+import { getAuthedUser } from "@/lib/api/authedSupabase";
 
 type PersistChatParams = {
   accessToken: string;
@@ -22,27 +22,6 @@ class ChatPersistenceError extends Error {
   }
 }
 
-const supabaseUrl = process.env.SUPABASE_URL;
-const supabaseAnonKey = process.env.SUPABASE_ANON_KEY;
-
-function createAuthedSupabase(accessToken: string) {
-  if (!supabaseUrl || !supabaseAnonKey) {
-    throw new Error("Missing Supabase environment variables");
-  }
-
-  return createClient(supabaseUrl, supabaseAnonKey, {
-    auth: {
-      persistSession: false,
-      autoRefreshToken: false,
-    },
-    global: {
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-      },
-    },
-  });
-}
-
 function createChatTitle(prompt: string) {
   const title = prompt.trim().replace(/\s+/g, " ");
 
@@ -55,18 +34,20 @@ export async function persistChatMessages({
   prompt,
   reply,
 }: PersistChatParams): Promise<PersistChatResult> {
-  const supabase = createAuthedSupabase(accessToken);
-  const { data: userData, error: userError } = await supabase.auth.getUser(accessToken);
+  let auth;
 
-  if (userError || !userData.user) {
+  try {
+    auth = await getAuthedUser(accessToken);
+  } catch (error) {
     throw new ChatPersistenceError(
       "get user",
-      userError?.message || "Please log in before sending chat messages.",
-      userError
+      error instanceof Error ? error.message : "Please log in before sending chat messages.",
+      error
     );
   }
 
-  const userId = userData.user.id;
+  const { supabase, user } = auth;
+  const userId = user.id;
   const now = new Date().toISOString();
   let activeChatId = chatId;
   let nextSequenceNumber = 1;

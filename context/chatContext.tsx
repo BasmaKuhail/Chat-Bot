@@ -6,6 +6,7 @@ type ChatContextValue = {
     setChat: React.Dispatch<React.SetStateAction<Message[]>>;
     currentChatId: string | null;
     setCurrentChatId: React.Dispatch<React.SetStateAction<string | null>>;
+    loadChat: (chatId: string, messages: Message[]) => void;
     resetChat: () => void;
 };
 
@@ -25,8 +26,14 @@ export default function ChatProvider({children}:{children:ReactNode}){
         setChat(initialChat)
         setCurrentChatId(null)
     }
+
+    const loadChat = (chatId: string, messages: Message[]) => {
+        setCurrentChatId(chatId)
+        setChat(messages.length ? messages : initialChat)
+    }
+
     return(
-        <ChatContext.Provider value={{chat, setChat, currentChatId, setCurrentChatId, resetChat}}>
+        <ChatContext.Provider value={{chat, setChat, currentChatId, setCurrentChatId, loadChat, resetChat}}>
             {children}  
         </ChatContext.Provider>
 
