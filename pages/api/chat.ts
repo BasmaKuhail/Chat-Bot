@@ -1,9 +1,12 @@
 import OpenAI from "openai";
 import type { NextApiRequest, NextApiResponse } from "next";
+import { persistChatMessages } from "@/lib/api/chatPersistence";
 
 // ChatContainer expects a "reply" string and displays it in the chat.
 type ChatResponse = {
   reply: string;
+  chatId?: string;
+  saveError?: string;
 };
 
 // Some API errors include an HTTP status code, like 401, 402, 404, or 429.
@@ -82,6 +85,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
   }
 
   const message = req.body?.message;
+  const chatId = req.body?.chatId;
 
   // Next.js parses JSON request bodies for API routes, but we still validate the shape.
   // This prevents empty prompts or non-string values from being sent to OpenRouter.
@@ -89,18 +93,30 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
     return res.status(400).json({ reply: "No message provided." });
   }
 
-  try {
-    // OpenRouter uses an OpenAI-compatible API, so the official OpenAI client can call it.
-    const openRouter = new OpenAI({
-      apiKey,
-      baseURL: "https://openrouter.ai/api/v1",
-      defaultHeaders: {
-        // OpenRouter uses these optional headers for app attribution/rankings.
-        "HTTP-Referer": process.env.OPEN_ROUTER_SITE_URL ?? "http://localhost:3000",
-        "X-Title": process.env.OPEN_ROUTER_APP_NAME ?? "BrainRot Chat",
-      },
-    });
+  if (chatId !== undefined && typeof chatId !== "string") {
+    return res.status(400).json({ reply: "Invalid chat id." });
+  }
 
+  const accessToken = req.cookies["sb-access-token"];
+
+  if (!accessToken) {
+    return res.status(401).json({ reply: "Please log in before sending chat messages." });
+  }
+
+  // OpenRouter uses an OpenAI-compatible API, so the official OpenAI client can call it.
+  const openRouter = new OpenAI({
+    apiKey,
+    baseURL: "https://openrouter.ai/api/v1",
+    defaultHeaders: {
+      // OpenRouter uses these optional headers for app attribution/rankings.
+      "HTTP-Referer": process.env.OPEN_ROUTER_SITE_URL ?? "http://localhost:3000",
+      "X-Title": process.env.OPEN_ROUTER_APP_NAME ?? "BrainRot Chat",
+    },
+  });
+
+  let text: string | null | undefined;
+
+  try {
     // Send the user's prompt to the selected model and read the first assistant response.
     // "openrouter/auto" lets OpenRouter choose a model if you do not set one in .env.local.
     const completion = await openRouter.chat.completions.create({
@@ -112,15 +128,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
         },
       ],
     });
-    const text = completion.choices[0]?.message?.content;
-
-    // If OpenRouter responds but does not include text, treat it as a bad upstream response.
-    if (!text) {
-      return res.status(502).json({ reply: "OpenRouter returned an empty response." });
-    }
-
-    // Successful path: send the assistant text back to the frontend.
-    return res.status(200).json({ reply: text });
+    text = completion.choices[0]?.message?.content;
   } catch (error: unknown) {
     const userError = getUserFacingError(error);
 
@@ -131,5 +139,37 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
     console.error("--- OPENROUTER ERROR END ---");
 
     return res.status(userError.status).json({ reply: userError.reply });
+  }
+
+  // If OpenRouter responds but does not include text, treat it as a bad upstream response.
+  if (!text) {
+    return res.status(502).json({ reply: "OpenRouter returned an empty response." });
+  }
+
+  try {
+    const savedChat = await persistChatMessages({
+      accessToken,
+      chatId,
+      prompt: message.trim(),
+      reply: text,
+    });
+
+    // Successful path: send the assistant text back to the frontend.
+    return res.status(200).json({ reply: text, chatId: savedChat.chatId });
+  } catch (error: unknown) {
+    const saveError = getErrorMessage(error);
+
+    console.error("--- CHAT PERSISTENCE ERROR START ---");
+    console.error("Message:", saveError);
+    console.error("Error:", error);
+    console.error("--- CHAT PERSISTENCE ERROR END ---");
+
+    return res.status(500).json({
+      reply: text,
+      saveError:
+        process.env.NODE_ENV === "production"
+          ? "The AI replied, but the chat could not be saved."
+          : saveError,
+    });
   }
 }
