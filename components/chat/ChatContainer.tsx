@@ -7,6 +7,7 @@ import { useEffect, useRef } from "react"
 import { useChat } from "@/context/chatContext"
 import { useToast } from "@/context/toastContext";
 import type { Message, ResponseMessage } from "@/types/messages";
+import ExportChat from "./ExportChat";
 
 type ChatStreamEvent =
     | { type: "delta"; text: string }
@@ -357,6 +358,13 @@ export default function ChatContainer(){
 
     return(
         <div className="flex w-full flex-col gap-6 px-0 pb-40 md:px-10">
+            <ExportChat
+                chat={chat}
+                disabled={
+                    isLoading ||
+                    !chat.some((message) => message.type === "prompt")
+                }
+            />
             {chat.map((msg, i) => (
                 <div key={i}>
                     {msg.type === "prompt" ? (
