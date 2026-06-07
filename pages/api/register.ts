@@ -16,6 +16,14 @@ type RegisterResponse = {
   };
 };
 
+function serializeCookie(name: string, value: string, maxAge: number) {
+  const secure = process.env.NODE_ENV === "production" ? "; Secure" : "";
+
+  return `${name}=${encodeURIComponent(
+    value
+  )}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${maxAge}${secure}`;
+}
+
 export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse<RegisterResponse>
@@ -87,6 +95,21 @@ export default async function handler(
     return res.status(500).json({
       message: "User could not be created.",
     });
+  }
+
+  if (data.session) {
+    res.setHeader("Set-Cookie", [
+      serializeCookie(
+        "sb-access-token",
+        data.session.access_token,
+        data.session.expires_in
+      ),
+      serializeCookie(
+        "sb-refresh-token",
+        data.session.refresh_token,
+        60 * 60 * 24 * 30
+      ),
+    ]);
   }
 
   return res.status(201).json({
