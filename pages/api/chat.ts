@@ -1,6 +1,7 @@
 import OpenAI from "openai";
 import type { NextApiRequest, NextApiResponse } from "next";
 import { persistChatMessages } from "@/lib/api/chatPersistence";
+import { getAuthedUserFromRequest } from "@/lib/api/authedSupabase";
 
 // ChatContainer expects a "reply" string and displays it in the chat.
 type ChatResponse = {
@@ -97,8 +98,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
     return res.status(400).json({ reply: "Invalid chat id." });
   }
 
-  const accessToken = req.cookies["sb-access-token"];
-
   // OpenRouter uses an OpenAI-compatible API, so the official OpenAI client can call it.
   const openRouter = new OpenAI({
     apiKey,
@@ -144,7 +143,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
 
   const reply = text;
 
-  if (!accessToken) {
+  if (
+    !req.cookies["sb-access-token"] &&
+    !req.cookies["sb-refresh-token"]
+  ) {
     return res.status(200).json({
       reply,
       saveError: "Log in to save this chat to your history.",
@@ -152,6 +154,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
   }
 
   try {
+    const { accessToken } = await getAuthedUserFromRequest(req, res);
     const savedChat = await persistChatMessages({
       accessToken,
       chatId,

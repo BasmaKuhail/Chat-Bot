@@ -1,5 +1,5 @@
 import type { NextApiRequest, NextApiResponse } from "next";
-import { getAuthedUser } from "@/lib/api/authedSupabase";
+import { getAuthedUserFromRequest } from "@/lib/api/authedSupabase";
 
 type LoadedMessage = {
   id: string;
@@ -31,10 +31,12 @@ export default async function handler(
     return res.status(405).json({ message: "Method Not Allowed" });
   }
 
-  const accessToken = req.cookies["sb-access-token"];
   const chatId = getChatId(req.query.chatId);
 
-  if (!accessToken) {
+  if (
+    !req.cookies["sb-access-token"] &&
+    !req.cookies["sb-refresh-token"]
+  ) {
     return res.status(401).json({ message: "Please log in to view chat history." });
   }
 
@@ -42,8 +44,16 @@ export default async function handler(
     return res.status(400).json({ message: "Chat id is required." });
   }
 
+  let auth;
+
   try {
-    const { supabase, user } = await getAuthedUser(accessToken);
+    auth = await getAuthedUserFromRequest(req, res);
+  } catch {
+    return res.status(401).json({ message: "Please log in to view chat history." });
+  }
+
+  try {
+    const { supabase, user } = auth;
     const { data: chat, error: chatError } = await supabase
       .from("chats")
       .select("id,title,user_id")

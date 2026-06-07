@@ -1,5 +1,6 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { signUpUser } from "@/lib/api/register";
+import { setAuthCookies } from "@/lib/api/authCookies";
 import {
   isRegisterUser,
   isValidEmail,
@@ -87,6 +88,10 @@ export default async function handler(
     return res.status(500).json({
       message: "User could not be created.",
     });
+  }
+
+  if (data.session) {
+    setAuthCookies(res, data.session);
   }
 
   return res.status(201).json({
