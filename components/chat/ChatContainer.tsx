@@ -7,6 +7,11 @@ import { useEffect, useRef } from "react"
 import { useChat } from "@/context/chatContext"
 import { useToast } from "@/context/toastContext";
 
+type ChatStreamEvent =
+    | { type: "delta"; text: string }
+    | { type: "done"; chatId?: string; saveError?: string }
+    | { type: "error"; message: string };
+
 export default function ChatContainer(){
     const {chat, setChat, currentChatId, setCurrentChatId} = useChat();
     const { showToast } = useToast();
@@ -18,11 +23,13 @@ export default function ChatContainer(){
     }, [chat])
 
     const [isLoading, setIsLoading] = useState(false);
+    const [isStreamingResponse, setIsStreamingResponse] = useState(false);
 
 const handleOnSend = async (userText: string) => {
     if (!userText.trim() || isLoading) return;
 
     setIsLoading(true);
+    setIsStreamingResponse(false);
     setChat(prev => [...prev, { type: "prompt", text: userText }]);
 
     try {
@@ -34,36 +41,107 @@ const handleOnSend = async (userText: string) => {
                 chatId: currentChatId ?? undefined,
             }),
         });
-        
-        const data = await res.json();
-        const reply = data.reply || "Sorry, I encountered an error.";
-        const saveError =
-            typeof data.saveError === "string" ? data.saveError : undefined;
 
-        if (saveError) {
-            showToast({ type: res.ok ? "info" : "error", message: saveError });
-        } else if (!res.ok) {
-            showToast({ type: "error", message: reply });
+        if (!res.ok) {
+            const data = await res.json();
+            throw new Error(data.reply || "Sorry, I encountered an error.");
         }
 
-        if (res.ok && typeof data.chatId === "string") {
-            setCurrentChatId(data.chatId);
+        if (!res.body) {
+            throw new Error("The chat server did not return a response stream.");
         }
 
-        setChat((prev) => [
-            ...prev,
-            { type: "response", text: saveError || res.ok ? reply : `Error: ${reply}` },
-        ]);
+        const reader = res.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = "";
+        let responseStarted = false;
+
+        const handleStreamEvent = (event: ChatStreamEvent) => {
+            if (event.type === "delta") {
+                if (!responseStarted) {
+                    responseStarted = true;
+                    setIsStreamingResponse(true);
+                    setChat((prev) => [
+                        ...prev,
+                        { type: "response", text: event.text },
+                    ]);
+                    return;
+                }
+
+                setChat((prev) => {
+                    const next = [...prev];
+                    const lastMessage = next.at(-1);
+
+                    if (lastMessage?.type === "response") {
+                        next[next.length - 1] = {
+                            ...lastMessage,
+                            text: lastMessage.text + event.text,
+                        };
+                    }
+
+                    return next;
+                });
+                return;
+            }
+
+            if (event.type === "done") {
+                setIsStreamingResponse(false);
+
+                if (typeof event.chatId === "string") {
+                    setCurrentChatId(event.chatId);
+                }
+
+                if (event.saveError) {
+                    showToast({ type: "info", message: event.saveError });
+                }
+                return;
+            }
+
+            throw new Error(event.message);
+        };
+
+        while (true) {
+            const { value, done } = await reader.read();
+            buffer += decoder.decode(value, { stream: !done });
+
+            const lines = buffer.split("\n");
+            buffer = lines.pop() ?? "";
+
+            for (const line of lines) {
+                if (line.trim()) {
+                    handleStreamEvent(JSON.parse(line) as ChatStreamEvent);
+                }
+            }
+
+            if (done) {
+                if (buffer.trim()) {
+                    handleStreamEvent(JSON.parse(buffer) as ChatStreamEvent);
+                }
+                break;
+            }
+        }
         
     } catch (error) {
         console.error(error);
-        showToast({ type: "error", message: "Could not reach the chat server." });
-        setChat((prev) => [
-            ...prev,
-            { type: "response", text: "Error: Could not reach the chat server." },
-        ]);
+        const message =
+            error instanceof Error
+                ? error.message
+                : "Could not reach the chat server.";
+
+        showToast({ type: "error", message });
+        setChat((prev) => {
+            if (prev.at(-1)?.type === "response") {
+                return prev;
+            }
+
+            return [
+                ...prev,
+                { type: "response", text: `Error: ${message}` },
+            ];
+        });
     } finally {
         setIsLoading(false);
+        setIsStreamingResponse(false);
     }
 };
     return(
@@ -74,10 +152,20 @@ const handleOnSend = async (userText: string) => {
                         <div className="flex justify-end w-full">
                             <div className="flex w-full max-w-[88%] justify-end md:max-w-[75%]"><Prompt text={msg.text}/></div>
                         </div>
-                    ): <div className="w-full max-w-[820px]"><Response text={msg.text}/></div>}
+                    ): (
+                        <div className="w-full max-w-[820px]">
+                            <Response
+                                text={msg.text}
+                                isStreaming={
+                                    isStreamingResponse &&
+                                    i === chat.length - 1
+                                }
+                            />
+                        </div>
+                    )}
                 </div>
             ))}
-            {isLoading && (
+            {isLoading && !isStreamingResponse && (
                 <div className="w-full max-w-[820px]">
                     <TypingIndicator />
                 </div>

@@ -3,12 +3,21 @@ import type { NextApiRequest, NextApiResponse } from "next";
 import { persistChatMessages } from "@/lib/api/chatPersistence";
 import { getAuthedUserFromRequest } from "@/lib/api/authedSupabase";
 
-// ChatContainer expects a "reply" string and displays it in the chat.
 type ChatResponse = {
   reply: string;
-  chatId?: string;
-  saveError?: string;
 };
+
+type ChatStreamEvent =
+  | { type: "delta"; text: string }
+  | { type: "done"; chatId?: string; saveError?: string }
+  | { type: "error"; message: string };
+
+function writeStreamEvent(
+  res: NextApiResponse,
+  event: ChatStreamEvent
+) {
+  res.write(`${JSON.stringify(event)}\n`);
+}
 
 // Some API errors include an HTTP status code, like 401, 402, 404, or 429.
 // Because caught errors are typed as "unknown", this helper safely checks for it.
@@ -109,12 +118,27 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
     },
   });
 
-  let text: string | null | undefined;
+  let accessToken: string | undefined;
+  let saveError: string | undefined;
+
+  if (
+    req.cookies["sb-access-token"] ||
+    req.cookies["sb-refresh-token"]
+  ) {
+    try {
+      const auth = await getAuthedUserFromRequest(req, res);
+      accessToken = auth.accessToken;
+    } catch {
+      saveError = "Log in to save this chat to your history.";
+    }
+  } else {
+    saveError = "Log in to save this chat to your history.";
+  }
+
+  let stream;
 
   try {
-    // Send the user's prompt to the selected model and read the first assistant response.
-    // "openrouter/auto" lets OpenRouter choose a model if you do not set one in .env.local.
-    const completion = await openRouter.chat.completions.create({
+    stream = await openRouter.chat.completions.create({
       model: process.env.OPEN_ROUTER_AI_MODEL ?? process.env.OPENROUTER_MODEL ?? "openrouter/auto",
       messages: [
         {
@@ -122,8 +146,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
           content: message.trim(),
         },
       ],
+      stream: true,
     });
-    text = completion.choices[0]?.message?.content;
   } catch (error: unknown) {
     const userError = getUserFacingError(error);
 
@@ -136,48 +160,72 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
     return res.status(userError.status).json({ reply: userError.reply });
   }
 
-  // If OpenRouter responds but does not include text, treat it as a bad upstream response.
-  if (!text) {
-    return res.status(502).json({ reply: "OpenRouter returned an empty response." });
-  }
+  res.statusCode = 200;
+  res.setHeader("Content-Type", "application/x-ndjson; charset=utf-8");
+  res.setHeader("Cache-Control", "no-cache, no-transform");
+  res.setHeader("X-Accel-Buffering", "no");
+  res.flushHeaders();
 
-  const reply = text;
-
-  if (
-    !req.cookies["sb-access-token"] &&
-    !req.cookies["sb-refresh-token"]
-  ) {
-    return res.status(200).json({
-      reply,
-      saveError: "Log in to save this chat to your history.",
-    });
-  }
+  let reply = "";
 
   try {
-    const { accessToken } = await getAuthedUserFromRequest(req, res);
-    const savedChat = await persistChatMessages({
-      accessToken,
-      chatId,
-      prompt: message.trim(),
-      reply,
-    });
+    for await (const chunk of stream) {
+      const text = chunk.choices[0]?.delta?.content;
 
-    // Successful path: send the assistant text back to the frontend.
-    return res.status(200).json({ reply, chatId: savedChat.chatId });
+      if (text) {
+        reply += text;
+        writeStreamEvent(res, { type: "delta", text });
+      }
+    }
+
+    if (!reply) {
+      throw new Error("OpenRouter returned an empty response.");
+    }
+
+    let savedChatId: string | undefined;
+
+    if (accessToken) {
+      try {
+        const savedChat = await persistChatMessages({
+          accessToken,
+          chatId,
+          prompt: message.trim(),
+          reply,
+        });
+        savedChatId = savedChat.chatId;
+      } catch (error: unknown) {
+        const persistenceError = getErrorMessage(error);
+
+        console.error("--- CHAT PERSISTENCE ERROR START ---");
+        console.error("Message:", persistenceError);
+        console.error("Error:", error);
+        console.error("--- CHAT PERSISTENCE ERROR END ---");
+
+        saveError =
+          process.env.NODE_ENV === "production"
+            ? "The AI replied, but the chat could not be saved."
+            : persistenceError;
+      }
+    }
+
+    writeStreamEvent(res, {
+      type: "done",
+      chatId: savedChatId,
+      saveError,
+    });
   } catch (error: unknown) {
-    const saveError = getErrorMessage(error);
+    const userError = getUserFacingError(error);
 
-    console.error("--- CHAT PERSISTENCE ERROR START ---");
-    console.error("Message:", saveError);
-    console.error("Error:", error);
-    console.error("--- CHAT PERSISTENCE ERROR END ---");
+    console.error("--- OPENROUTER STREAM ERROR START ---");
+    console.error("Status:", getErrorStatus(error));
+    console.error("Message:", getErrorMessage(error));
+    console.error("--- OPENROUTER STREAM ERROR END ---");
 
-    return res.status(500).json({
-      reply,
-      saveError:
-        process.env.NODE_ENV === "production"
-          ? "The AI replied, but the chat could not be saved."
-          : saveError,
+    writeStreamEvent(res, {
+      type: "error",
+      message: userError.reply,
     });
+  } finally {
+    res.end();
   }
 }

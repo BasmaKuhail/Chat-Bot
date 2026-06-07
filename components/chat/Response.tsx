@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import TypingIndicator from "./TypingIndicator";
 
 function renderBoldText(text: string) {
   const parts = text.split(/(\*\*[^*]+\*\*)/g);
@@ -52,7 +53,15 @@ function renderMessage(text: string) {
     .map(renderLine);
 }
 
-export default function Response({ text }: { text: string }) {
+type ResponseProps = {
+  text: string;
+  isStreaming?: boolean;
+};
+
+export default function Response({
+  text,
+  isStreaming = false,
+}: ResponseProps) {
   const isError = text.startsWith("Error:");
 
   return (
@@ -64,6 +73,7 @@ export default function Response({ text }: { text: string }) {
       }`}
     >
       <div className="flex flex-col gap-3 text-[15px]">{renderMessage(text)}</div>
+      {isStreaming && <TypingIndicator compact />}
     </div>
   );
 }
