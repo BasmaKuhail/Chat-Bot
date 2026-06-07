@@ -148,6 +148,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
   const message = req.body?.message;
   const chatId = req.body?.chatId;
   const conversationHistory = getConversationHistory(req.body?.history);
+  const savePrompt = req.body?.savePrompt !== false;
 
   // Next.js parses JSON request bodies for API routes, but we still validate the shape.
   // This prevents empty prompts or non-string values from being sent to OpenRouter.
@@ -249,6 +250,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
           chatId,
           prompt: message.trim(),
           reply,
+          savePrompt,
         });
         savedChatId = savedChat.chatId;
       } catch (error: unknown) {

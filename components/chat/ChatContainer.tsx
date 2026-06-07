@@ -6,6 +6,7 @@ import Input from "../Input";
 import { useEffect, useRef } from "react"
 import { useChat } from "@/context/chatContext"
 import { useToast } from "@/context/toastContext";
+import type { Message, ResponseMessage } from "@/types/messages";
 
 type ChatStreamEvent =
     | { type: "delta"; text: string }
@@ -29,6 +30,10 @@ function getConversationHistory(chat: ReturnType<typeof useChat>["chat"]) {
         }));
 }
 
+function getResponseVersions(message: ResponseMessage) {
+    return message.versions?.length ? message.versions : [message.text];
+}
+
 export default function ChatContainer(){
     const {chat, setChat, currentChatId, setCurrentChatId} = useChat();
     const { showToast } = useToast();
@@ -40,150 +45,314 @@ export default function ChatContainer(){
     }, [chat])
 
     const [isLoading, setIsLoading] = useState(false);
-    const [isStreamingResponse, setIsStreamingResponse] = useState(false);
+    const [streamingResponseIndex, setStreamingResponseIndex] = useState<number | null>(null);
 
-const handleOnSend = async (userText: string) => {
-    if (!userText.trim() || isLoading) return;
+    const updateResponseVersion = (
+        responseIndex: number,
+        updater: (current: string) => string
+    ) => {
+        setChat((currentChat) => {
+            const next = [...currentChat];
+            const response = next[responseIndex];
 
-    setIsLoading(true);
-    setIsStreamingResponse(false);
-    setChat(prev => [...prev, { type: "prompt", text: userText }]);
+            if (response?.type !== "response") {
+                return currentChat;
+            }
 
-    try {
-        const res = await fetch("/api/chat", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-                message: userText,
-                chatId: currentChatId ?? undefined,
-                history: getConversationHistory(chat),
-            }),
+            const versions = [...getResponseVersions(response)];
+            const activeVersion = response.activeVersion ?? versions.length - 1;
+            versions[activeVersion] = updater(versions[activeVersion] ?? "");
+            next[responseIndex] = {
+                ...response,
+                text: versions[activeVersion],
+                versions,
+                activeVersion,
+            };
+
+            return next;
         });
+    };
 
-        if (!res.ok) {
-            const data = await res.json();
-            throw new Error(data.reply || "Sorry, I encountered an error.");
+    const generateResponse = async ({
+        prompt,
+        displayChat,
+        contextChat,
+        responseIndex,
+        savePrompt,
+    }: {
+        prompt: string;
+        displayChat: Message[];
+        contextChat: Message[];
+        responseIndex?: number;
+        savePrompt: boolean;
+    }) => {
+        if (isLoading) return;
+
+        setIsLoading(true);
+        let targetResponseIndex = responseIndex;
+        let responseStarted = responseIndex !== undefined;
+
+        if (targetResponseIndex === undefined) {
+            setChat([...displayChat, { type: "prompt", text: prompt }]);
+        } else {
+            const next = [...displayChat];
+            const response = next[targetResponseIndex];
+
+            if (response?.type !== "response") {
+                setIsLoading(false);
+                return;
+            }
+
+            const versions = [...getResponseVersions(response), ""];
+            next[targetResponseIndex] = {
+                ...response,
+                text: "",
+                versions,
+                activeVersion: versions.length - 1,
+            };
+            setChat(next);
+            setStreamingResponseIndex(targetResponseIndex);
         }
 
-        if (!res.body) {
-            throw new Error("The chat server did not return a response stream.");
-        }
+        try {
+            const res = await fetch("/api/chat", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    message: prompt,
+                    chatId: currentChatId ?? undefined,
+                    history: getConversationHistory(contextChat),
+                    savePrompt,
+                }),
+            });
 
-        const reader = res.body.getReader();
-        const decoder = new TextDecoder();
-        let buffer = "";
-        let responseStarted = false;
+            if (!res.ok) {
+                const data = await res.json();
+                throw new Error(data.reply || "Sorry, I encountered an error.");
+            }
 
-        const handleStreamEvent = (event: ChatStreamEvent) => {
-            if (event.type === "delta") {
-                if (!responseStarted) {
-                    responseStarted = true;
-                    setIsStreamingResponse(true);
-                    setChat((prev) => [
-                        ...prev,
-                        { type: "response", text: event.text },
-                    ]);
+            if (!res.body) {
+                throw new Error("The chat server did not return a response stream.");
+            }
+
+            const reader = res.body.getReader();
+            const decoder = new TextDecoder();
+            let buffer = "";
+
+            const handleStreamEvent = (event: ChatStreamEvent) => {
+                if (event.type === "delta") {
+                    if (!responseStarted) {
+                        responseStarted = true;
+                        targetResponseIndex = displayChat.length + 1;
+                        setStreamingResponseIndex(targetResponseIndex);
+                        setChat((currentChat) => [
+                            ...currentChat,
+                            {
+                                type: "response",
+                                text: event.text,
+                                versions: [event.text],
+                                activeVersion: 0,
+                            },
+                        ]);
+                        return;
+                    }
+
+                    if (targetResponseIndex !== undefined) {
+                        updateResponseVersion(
+                            targetResponseIndex,
+                            (current) => current + event.text
+                        );
+                    }
                     return;
                 }
 
-                setChat((prev) => {
-                    const next = [...prev];
-                    const lastMessage = next.at(-1);
+                if (event.type === "done") {
+                    setStreamingResponseIndex(null);
 
-                    if (lastMessage?.type === "response") {
-                        next[next.length - 1] = {
-                            ...lastMessage,
-                            text: lastMessage.text + event.text,
-                        };
+                    if (typeof event.chatId === "string") {
+                        setCurrentChatId(event.chatId);
                     }
 
-                    return next;
-                });
-                return;
-            }
-
-            if (event.type === "done") {
-                setIsStreamingResponse(false);
-
-                if (typeof event.chatId === "string") {
-                    setCurrentChatId(event.chatId);
+                    if (event.saveError) {
+                        showToast({ type: "info", message: event.saveError });
+                    }
+                    return;
                 }
 
-                if (event.saveError) {
-                    showToast({ type: "info", message: event.saveError });
+                throw new Error(event.message);
+            };
+
+            while (true) {
+                const { value, done } = await reader.read();
+                buffer += decoder.decode(value, { stream: !done });
+
+                const lines = buffer.split("\n");
+                buffer = lines.pop() ?? "";
+
+                for (const line of lines) {
+                    if (line.trim()) {
+                        handleStreamEvent(JSON.parse(line) as ChatStreamEvent);
+                    }
                 }
-                return;
-            }
 
-            throw new Error(event.message);
-        };
-
-        while (true) {
-            const { value, done } = await reader.read();
-            buffer += decoder.decode(value, { stream: !done });
-
-            const lines = buffer.split("\n");
-            buffer = lines.pop() ?? "";
-
-            for (const line of lines) {
-                if (line.trim()) {
-                    handleStreamEvent(JSON.parse(line) as ChatStreamEvent);
+                if (done) {
+                    if (buffer.trim()) {
+                        handleStreamEvent(JSON.parse(buffer) as ChatStreamEvent);
+                    }
+                    break;
                 }
             }
+        } catch (error) {
+            console.error(error);
+            const message =
+                error instanceof Error
+                    ? error.message
+                    : "Could not reach the chat server.";
 
-            if (done) {
-                if (buffer.trim()) {
-                    handleStreamEvent(JSON.parse(buffer) as ChatStreamEvent);
-                }
-                break;
+            showToast({ type: "error", message });
+
+            if (targetResponseIndex !== undefined) {
+                updateResponseVersion(
+                    targetResponseIndex,
+                    (current) => current || `Error: ${message}`
+                );
+            } else {
+                setChat((currentChat) => [
+                    ...currentChat,
+                    { type: "response", text: `Error: ${message}` },
+                ]);
             }
+        } finally {
+            setIsLoading(false);
+            setStreamingResponseIndex(null);
         }
-        
-    } catch (error) {
-        console.error(error);
-        const message =
-            error instanceof Error
-                ? error.message
-                : "Could not reach the chat server.";
+    };
 
-        showToast({ type: "error", message });
-        setChat((prev) => {
-            if (prev.at(-1)?.type === "response") {
-                return prev;
+    const handleOnSend = (userText: string) => {
+        if (!userText.trim() || isLoading) return;
+
+        void generateResponse({
+            prompt: userText.trim(),
+            displayChat: chat,
+            contextChat: chat,
+            savePrompt: true,
+        });
+    };
+
+    const handleRegenerate = (responseIndex: number) => {
+        const promptIndex = responseIndex - 1;
+        const prompt = chat[promptIndex];
+        const response = chat[responseIndex];
+
+        if (prompt?.type !== "prompt" || response?.type !== "response") {
+            return;
+        }
+
+        const truncatedChat = chat.slice(0, responseIndex + 1);
+
+        void generateResponse({
+            prompt: prompt.text,
+            displayChat: truncatedChat,
+            contextChat: truncatedChat.slice(0, promptIndex),
+            responseIndex,
+            savePrompt: false,
+        });
+    };
+
+    const handleEditPrompt = (promptIndex: number, text: string) => {
+        const responseIndex = promptIndex + 1;
+        const response = chat[responseIndex];
+
+        if (response?.type !== "response") {
+            return;
+        }
+
+        const truncatedChat = chat.slice(0, responseIndex + 1);
+        truncatedChat[promptIndex] = { type: "prompt", text };
+
+        void generateResponse({
+            prompt: text,
+            displayChat: truncatedChat,
+            contextChat: truncatedChat.slice(0, promptIndex),
+            responseIndex,
+            savePrompt: true,
+        });
+    };
+
+    const selectResponseVersion = (responseIndex: number, versionIndex: number) => {
+        setChat((currentChat) => {
+            const next = [...currentChat];
+            const response = next[responseIndex];
+
+            if (response?.type !== "response") {
+                return currentChat;
             }
 
-            return [
-                ...prev,
-                { type: "response", text: `Error: ${message}` },
-            ];
+            const versions = getResponseVersions(response);
+            const text = versions[versionIndex];
+
+            if (text === undefined) {
+                return currentChat;
+            }
+
+            next[responseIndex] = {
+                ...response,
+                text,
+                versions,
+                activeVersion: versionIndex,
+            };
+            return next;
         });
-    } finally {
-        setIsLoading(false);
-        setIsStreamingResponse(false);
-    }
-};
+    };
+
     return(
         <div className="flex w-full flex-col gap-6 px-0 pb-40 md:px-10">
             {chat.map((msg, i) => (
                 <div key={i}>
                     {msg.type === "prompt" ? (
                         <div className="flex justify-end w-full">
-                            <div className="flex w-full max-w-[88%] justify-end md:max-w-[75%]"><Prompt text={msg.text}/></div>
+                            <div className="flex w-full max-w-[88%] justify-end md:max-w-[75%]">
+                                <Prompt
+                                    text={msg.text}
+                                    disabled={isLoading}
+                                    onEdit={
+                                        chat[i + 1]?.type === "response"
+                                            ? (text) => handleEditPrompt(i, text)
+                                            : undefined
+                                    }
+                                />
+                            </div>
                         </div>
                     ): (
                         <div className="w-full max-w-[820px]">
                             <Response
                                 text={msg.text}
-                                isStreaming={
-                                    isStreamingResponse &&
-                                    i === chat.length - 1
+                                isStreaming={streamingResponseIndex === i}
+                                versionIndex={msg.activeVersion ?? 0}
+                                versionCount={getResponseVersions(msg).length}
+                                onPreviousVersion={() =>
+                                    selectResponseVersion(
+                                        i,
+                                        (msg.activeVersion ?? 0) - 1
+                                    )
+                                }
+                                onNextVersion={() =>
+                                    selectResponseVersion(
+                                        i,
+                                        (msg.activeVersion ?? 0) + 1
+                                    )
+                                }
+                                onRegenerate={
+                                    chat[i - 1]?.type === "prompt" && !isLoading
+                                        ? () => handleRegenerate(i)
+                                        : undefined
                                 }
                             />
                         </div>
                     )}
                 </div>
             ))}
-            {isLoading && !isStreamingResponse && (
+            {isLoading && streamingResponseIndex === null && (
                 <div className="w-full max-w-[820px]">
                     <TypingIndicator />
                 </div>

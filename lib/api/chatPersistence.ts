@@ -5,6 +5,7 @@ type PersistChatParams = {
   chatId?: string;
   prompt: string;
   reply: string;
+  savePrompt?: boolean;
 };
 
 type PersistChatResult = {
@@ -33,6 +34,7 @@ export async function persistChatMessages({
   chatId,
   prompt,
   reply,
+  savePrompt = true,
 }: PersistChatParams): Promise<PersistChatResult> {
   let auth;
 
@@ -103,22 +105,34 @@ export async function persistChatMessages({
     activeChatId = chat.id;
   }
 
-  const { error: messagesError } = await supabase.from("messages").insert([
-    {
-      chat_id: activeChatId,
-      sequence_number: nextSequenceNumber,
-      role: "user",
-      content: prompt,
-      created_at: now,
-    },
-    {
-      chat_id: activeChatId,
-      sequence_number: nextSequenceNumber + 1,
-      role: "assistant",
-      content: reply,
-      created_at: now,
-    },
-  ]);
+  const messages = savePrompt
+    ? [
+        {
+          chat_id: activeChatId,
+          sequence_number: nextSequenceNumber,
+          role: "user",
+          content: prompt,
+          created_at: now,
+        },
+        {
+          chat_id: activeChatId,
+          sequence_number: nextSequenceNumber + 1,
+          role: "assistant",
+          content: reply,
+          created_at: now,
+        },
+      ]
+    : [
+        {
+          chat_id: activeChatId,
+          sequence_number: nextSequenceNumber,
+          role: "assistant",
+          content: reply,
+          created_at: now,
+        },
+      ];
+
+  const { error: messagesError } = await supabase.from("messages").insert(messages);
 
   if (messagesError) {
     throw new ChatPersistenceError(
@@ -131,7 +145,7 @@ export async function persistChatMessages({
   const { error: updateError } = await supabase
     .from("chats")
     .update({
-      next_sequence_number: nextSequenceNumber + 2,
+      next_sequence_number: nextSequenceNumber + (savePrompt ? 2 : 1),
       updated_at: now,
       last_message_at: now,
     })

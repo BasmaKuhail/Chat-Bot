@@ -60,10 +60,35 @@ function formatRelativeDate(value: string | null) {
 }
 
 function toUiMessages(messages: ChatHistoryMessage[]): Message[] {
-  return messages.map((message) => ({
-    type: message.role === "user" ? "prompt" : "response",
-    text: message.content,
-  }));
+  return messages.reduce<Message[]>((result, message) => {
+    if (message.role === "user") {
+      result.push({ type: "prompt", text: message.content });
+      return result;
+    }
+
+    const previous = result.at(-1);
+
+    if (previous?.type === "response") {
+      const versions = previous.versions?.length
+        ? [...previous.versions, message.content]
+        : [previous.text, message.content];
+      result[result.length - 1] = {
+        ...previous,
+        text: message.content,
+        versions,
+        activeVersion: versions.length - 1,
+      };
+      return result;
+    }
+
+    result.push({
+      type: "response",
+      text: message.content,
+      versions: [message.content],
+      activeVersion: 0,
+    });
+    return result;
+  }, []);
 }
 
 export default function ChatHistoryPage() {
