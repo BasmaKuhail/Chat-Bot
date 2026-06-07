@@ -1,5 +1,5 @@
 import type { NextApiRequest, NextApiResponse } from "next";
-import { getAuthedUser } from "@/lib/api/authedSupabase";
+import { getAuthedUserFromRequest } from "@/lib/api/authedSupabase";
 
 type ChatSummary = {
   id: string;
@@ -22,14 +22,23 @@ export default async function handler(
     return res.status(405).json({ message: "Method Not Allowed" });
   }
 
-  const accessToken = req.cookies["sb-access-token"];
+  if (
+    !req.cookies["sb-access-token"] &&
+    !req.cookies["sb-refresh-token"]
+  ) {
+    return res.status(401).json({ message: "Please log in to view chat history." });
+  }
 
-  if (!accessToken) {
+  let auth;
+
+  try {
+    auth = await getAuthedUserFromRequest(req, res);
+  } catch {
     return res.status(401).json({ message: "Please log in to view chat history." });
   }
 
   try {
-    const { supabase, user } = await getAuthedUser(accessToken);
+    const { supabase, user } = auth;
     const { data, error } = await supabase
       .from("chats")
       .select("id,title,last_message_at,updated_at")

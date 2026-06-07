@@ -1,5 +1,5 @@
 import type { NextApiRequest, NextApiResponse } from "next";
-import { getAuthedUser } from "@/lib/api/authedSupabase";
+import { getAuthedUserFromRequest } from "@/lib/api/authedSupabase";
 
 type MeResponse = {
   isLoggedIn: boolean;
@@ -19,14 +19,15 @@ export default async function handler(
     return res.status(405).json({ isLoggedIn: false });
   }
 
-  const accessToken = req.cookies["sb-access-token"];
-
-  if (!accessToken) {
+  if (
+    !req.cookies["sb-access-token"] &&
+    !req.cookies["sb-refresh-token"]
+  ) {
     return res.status(200).json({ isLoggedIn: false });
   }
 
   try {
-    const { user } = await getAuthedUser(accessToken);
+    const { user } = await getAuthedUserFromRequest(req, res);
 
     return res.status(200).json({
       isLoggedIn: true,

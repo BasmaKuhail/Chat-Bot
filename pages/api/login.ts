@@ -1,5 +1,6 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { signInUser } from "@/lib/api/login";
+import { setAuthCookies } from "@/lib/api/authCookies";
 import { isLoginUser, isValidEmail } from "@/lib/validations/register";
 
 type LoginResponse = {
@@ -10,14 +11,6 @@ type LoginResponse = {
     username?: string;
   };
 };
-
-function serializeCookie(name: string, value: string, maxAge: number) {
-  const secure = process.env.NODE_ENV === "production" ? "; Secure" : "";
-
-  return `${name}=${encodeURIComponent(
-    value
-  )}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${maxAge}${secure}`;
-}
 
 export default async function handler(
   req: NextApiRequest,
@@ -63,10 +56,7 @@ export default async function handler(
     });
   }
 
-  res.setHeader("Set-Cookie", [
-    serializeCookie("sb-access-token", data.session.access_token, data.session.expires_in),
-    serializeCookie("sb-refresh-token", data.session.refresh_token, 60 * 60 * 24 * 30),
-  ]);
+  setAuthCookies(res, data.session);
 
   return res.status(200).json({
     message: "Logged in successfully.",

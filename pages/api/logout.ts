@@ -1,14 +1,9 @@
 import type { NextApiRequest, NextApiResponse } from "next";
+import { clearAuthCookies } from "@/lib/api/authCookies";
 
 type LogoutResponse = {
   message: string;
 };
-
-function clearCookie(name: string) {
-  const secure = process.env.NODE_ENV === "production" ? "; Secure" : "";
-
-  return `${name}=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0${secure}`;
-}
 
 export default function handler(
   req: NextApiRequest,
@@ -19,10 +14,7 @@ export default function handler(
     return res.status(405).json({ message: "Method Not Allowed" });
   }
 
-  res.setHeader("Set-Cookie", [
-    clearCookie("sb-access-token"),
-    clearCookie("sb-refresh-token"),
-  ]);
+  clearAuthCookies(res);
 
   return res.status(200).json({ message: "Logged out successfully." });
 }

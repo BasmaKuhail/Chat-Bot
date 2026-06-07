@@ -1,5 +1,6 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { signUpUser } from "@/lib/api/register";
+import { setAuthCookies } from "@/lib/api/authCookies";
 import {
   isRegisterUser,
   isValidEmail,
@@ -15,14 +16,6 @@ type RegisterResponse = {
     email: string;
   };
 };
-
-function serializeCookie(name: string, value: string, maxAge: number) {
-  const secure = process.env.NODE_ENV === "production" ? "; Secure" : "";
-
-  return `${name}=${encodeURIComponent(
-    value
-  )}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${maxAge}${secure}`;
-}
 
 export default async function handler(
   req: NextApiRequest,
@@ -98,18 +91,7 @@ export default async function handler(
   }
 
   if (data.session) {
-    res.setHeader("Set-Cookie", [
-      serializeCookie(
-        "sb-access-token",
-        data.session.access_token,
-        data.session.expires_in
-      ),
-      serializeCookie(
-        "sb-refresh-token",
-        data.session.refresh_token,
-        60 * 60 * 24 * 30
-      ),
-    ]);
+    setAuthCookies(res, data.session);
   }
 
   return res.status(201).json({
