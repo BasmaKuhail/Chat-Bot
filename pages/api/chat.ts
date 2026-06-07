@@ -12,6 +12,57 @@ type ChatStreamEvent =
   | { type: "done"; chatId?: string; saveError?: string }
   | { type: "error"; message: string };
 
+type ConversationMessage = {
+  role: "user" | "assistant";
+  content: string;
+};
+
+const MAX_HISTORY_MESSAGES = 10;
+const MAX_HISTORY_CHARACTERS = 8_000;
+const MAX_HISTORY_MESSAGE_CHARACTERS = 3_000;
+
+function getConversationHistory(value: unknown): ConversationMessage[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  const validMessages = value
+    .filter(
+      (item): item is ConversationMessage =>
+        typeof item === "object" &&
+        item !== null &&
+        "role" in item &&
+        (item.role === "user" || item.role === "assistant") &&
+        "content" in item &&
+        typeof item.content === "string" &&
+        Boolean(item.content.trim())
+    )
+    .slice(-MAX_HISTORY_MESSAGES);
+
+  const selected: ConversationMessage[] = [];
+  let remainingCharacters = MAX_HISTORY_CHARACTERS;
+
+  for (let index = validMessages.length - 1; index >= 0; index -= 1) {
+    const message = validMessages[index];
+    const content = message.content
+      .trim()
+      .slice(0, Math.min(MAX_HISTORY_MESSAGE_CHARACTERS, remainingCharacters));
+
+    if (!content) {
+      continue;
+    }
+
+    selected.unshift({ role: message.role, content });
+    remainingCharacters -= content.length;
+
+    if (remainingCharacters === 0) {
+      break;
+    }
+  }
+
+  return selected;
+}
+
 function writeStreamEvent(
   res: NextApiResponse,
   event: ChatStreamEvent
@@ -96,6 +147,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
 
   const message = req.body?.message;
   const chatId = req.body?.chatId;
+  const conversationHistory = getConversationHistory(req.body?.history);
 
   // Next.js parses JSON request bodies for API routes, but we still validate the shape.
   // This prevents empty prompts or non-string values from being sent to OpenRouter.
@@ -141,6 +193,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
     stream = await openRouter.chat.completions.create({
       model: process.env.OPEN_ROUTER_AI_MODEL ?? process.env.OPENROUTER_MODEL ?? "openrouter/auto",
       messages: [
+        {
+          role: "system",
+          content:
+            "Use the recent conversation for context. Answer directly and do not repeat earlier information unless it is useful.",
+        },
+        ...conversationHistory,
         {
           role: "user",
           content: message.trim(),

@@ -12,6 +12,23 @@ type ChatStreamEvent =
     | { type: "done"; chatId?: string; saveError?: string }
     | { type: "error"; message: string };
 
+function getConversationHistory(chat: ReturnType<typeof useChat>["chat"]) {
+    const firstPromptIndex = chat.findIndex((message) => message.type === "prompt");
+
+    if (firstPromptIndex === -1) {
+        return [];
+    }
+
+    return chat
+        .slice(firstPromptIndex)
+        .filter((message) => !message.text.startsWith("Error:"))
+        .slice(-10)
+        .map((message) => ({
+            role: message.type === "prompt" ? "user" : "assistant",
+            content: message.text,
+        }));
+}
+
 export default function ChatContainer(){
     const {chat, setChat, currentChatId, setCurrentChatId} = useChat();
     const { showToast } = useToast();
@@ -39,6 +56,7 @@ const handleOnSend = async (userText: string) => {
             body: JSON.stringify({
                 message: userText,
                 chatId: currentChatId ?? undefined,
+                history: getConversationHistory(chat),
             }),
         });
 
