@@ -67,7 +67,7 @@ export default function ExportChat({
   return (
     <div
       ref={containerRef}
-      className="fixed bottom-36 right-4 z-40 md:right-10"
+      className="fixed bottom-36 right-4 z-30 md:right-10"
     >
       <button
         type="button"

@@ -162,12 +162,12 @@ export default function SideNav(){
                     isMobileNavOpen ? "translate-x-0" : "-translate-x-full"
                 }`}
             >
-                <div className="flex items-center justify-center">
+                <div className="relative flex items-center justify-center">
                     <Image src={logo} alt="logo" width={200}/>
                     <button
                         type="button"
                         onClick={closeMobileNav}
-                        className="flex h-9 w-9 cursor-pointer items-center justify-center rounded-[8px] text-xl font-semibold text-gray-500 hover:bg-gray-100 md:hidden"
+                        className="absolute -right-3 -top-8 flex h-9 w-9 cursor-pointer items-center justify-center rounded-[8px] text-xl font-semibold text-gray-500 hover:bg-gray-100 md:hidden"
                         aria-label="Close navigation"
                     >
                         x

@@ -234,7 +234,7 @@ export default function ChatHistoryPage() {
     <div className="flex min-h-screen w-full flex-col bg-white-10">
       <div className="flex flex-row">
         <SideNav />
-        <main className="flex w-full flex-col gap-6 px-4 py-20 md:ml-80 md:px-10 md:py-10">
+        <main className="flex w-full flex-col gap-6 px-4 py-20 md:ml-80 md:px-10 md:py-12">
           <div className="flex flex-col gap-4 border-b border-gray-200 pb-6 md:flex-row md:items-end md:justify-between">
             <div className="flex flex-col gap-2">
               <h1 className="text-3xl font-bold text-blue-20 md:text-36px">
