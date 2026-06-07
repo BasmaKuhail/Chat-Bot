@@ -98,6 +98,11 @@ export default function ChatHistoryPage() {
   const [chats, setChats] = useState<ChatSummary[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [openingChatId, setOpeningChatId] = useState<string | null>(null);
+  const [editingChatId, setEditingChatId] = useState<string | null>(null);
+  const [titleDraft, setTitleDraft] = useState("");
+  const [savingChatId, setSavingChatId] = useState<string | null>(null);
+  const [deletingChatId, setDeletingChatId] = useState<string | null>(null);
+  const [confirmingDeleteId, setConfirmingDeleteId] = useState<string | null>(null);
 
   const loadHistory = useCallback(async () => {
     setIsLoading(true);
@@ -149,6 +154,79 @@ export default function ChatHistoryPage() {
       });
     } finally {
       setOpeningChatId(null);
+    }
+  };
+
+  const handleStartRename = (chat: ChatSummary) => {
+    setConfirmingDeleteId(null);
+    setEditingChatId(chat.id);
+    setTitleDraft(chat.title);
+  };
+
+  const handleRename = async (chatId: string) => {
+    const title = titleDraft.trim();
+
+    if (!title) {
+      showToast({ type: "error", message: "Chat title is required." });
+      return;
+    }
+
+    setSavingChatId(chatId);
+
+    try {
+      const response = await fetch(`/api/chats/${chatId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ title }),
+      });
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.message || "Chat could not be renamed.");
+      }
+
+      setChats((current) =>
+        current.map((chat) =>
+          chat.id === chatId ? { ...chat, title: result.title ?? title } : chat
+        )
+      );
+      setEditingChatId(null);
+      showToast({ type: "success", message: "Chat renamed successfully." });
+    } catch (error) {
+      showToast({
+        type: "error",
+        message:
+          error instanceof Error ? error.message : "Chat could not be renamed.",
+      });
+    } finally {
+      setSavingChatId(null);
+    }
+  };
+
+  const handleDelete = async (chatId: string) => {
+    setDeletingChatId(chatId);
+
+    try {
+      const response = await fetch(`/api/chats/${chatId}`, {
+        method: "DELETE",
+      });
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.message || "Chat could not be deleted.");
+      }
+
+      setChats((current) => current.filter((chat) => chat.id !== chatId));
+      setConfirmingDeleteId(null);
+      showToast({ type: "success", message: "Chat deleted successfully." });
+    } catch (error) {
+      showToast({
+        type: "error",
+        message:
+          error instanceof Error ? error.message : "Chat could not be deleted.",
+      });
+    } finally {
+      setDeletingChatId(null);
     }
   };
 
@@ -213,32 +291,118 @@ export default function ChatHistoryPage() {
           ) : (
             <div className="grid w-full grid-cols-1 gap-3">
               {chats.map((chat) => (
-                <button
+                <div
                   key={chat.id}
-                  type="button"
-                  onClick={() => handleOpenChat(chat.id)}
-                  disabled={openingChatId !== null}
-                  className="group flex cursor-pointer flex-col gap-4 rounded-[8px] border border-gray-200 bg-white-0 p-5 text-left shadow-sm transition hover:border-blue-10 hover:shadow-md disabled:cursor-not-allowed disabled:opacity-70 md:flex-row md:items-center md:justify-between"
+                  className="group flex flex-col gap-4 rounded-[8px] border border-gray-200 bg-white-0 p-5 shadow-sm transition hover:border-blue-10 hover:shadow-md md:flex-row md:items-center md:justify-between"
                 >
                   <div className="flex min-w-0 flex-col gap-2">
-                    <span className="line-clamp-1 text-base font-bold text-gray-800 group-hover:text-blue-20">
-                      {chat.title}
-                    </span>
+                    {editingChatId === chat.id ? (
+                      <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                        <input
+                          value={titleDraft}
+                          onChange={(event) => setTitleDraft(event.target.value)}
+                          onKeyDown={(event) => {
+                            if (event.key === "Enter") {
+                              void handleRename(chat.id);
+                            }
+                            if (event.key === "Escape") {
+                              setEditingChatId(null);
+                            }
+                          }}
+                          maxLength={100}
+                          autoFocus
+                          className="min-w-0 rounded-[7px] border border-gray-200 px-3 py-2 text-sm font-semibold text-gray-800 outline-none focus:border-blue-10"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => void handleRename(chat.id)}
+                          disabled={savingChatId === chat.id}
+                          className="cursor-pointer rounded-[7px] bg-blue-10 px-3 py-2 text-xs font-semibold text-white disabled:cursor-wait disabled:opacity-60"
+                        >
+                          {savingChatId === chat.id ? "Saving..." : "Save"}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setEditingChatId(null)}
+                          className="cursor-pointer rounded-[7px] px-3 py-2 text-xs font-semibold text-gray-500 hover:bg-gray-100"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => void handleOpenChat(chat.id)}
+                        disabled={openingChatId !== null || deletingChatId !== null}
+                        className="line-clamp-1 cursor-pointer text-left text-base font-bold text-gray-800 transition hover:text-blue-20 disabled:cursor-not-allowed disabled:opacity-70"
+                      >
+                        {chat.title}
+                      </button>
+                    )}
                     <span className="text-xs text-gray-500">
                       {formatDate(chat.lastMessageAt ?? chat.updatedAt)}
                     </span>
                   </div>
-                  <div className="flex shrink-0 items-center justify-between gap-3 md:justify-end">
+                  <div className="flex shrink-0 flex-wrap items-center justify-between gap-2 md:justify-end">
                     <span className="rounded-full bg-gray-100 px-3 py-1 text-xs font-semibold text-gray-500">
                       {openingChatId === chat.id
                         ? "Opening..."
                         : formatRelativeDate(chat.lastMessageAt ?? chat.updatedAt)}
                     </span>
-                    <span className="text-sm font-semibold text-blue-10">
-                      Open
-                    </span>
+                    {confirmingDeleteId === chat.id ? (
+                      <>
+                        <span className="text-xs font-semibold text-red-600">
+                          Delete permanently?
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => void handleDelete(chat.id)}
+                          disabled={deletingChatId === chat.id}
+                          className="cursor-pointer rounded-[7px] bg-red-600 px-3 py-1.5 text-xs font-semibold text-white disabled:cursor-wait disabled:opacity-60"
+                        >
+                          {deletingChatId === chat.id ? "Deleting..." : "Delete"}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setConfirmingDeleteId(null)}
+                          className="cursor-pointer rounded-[7px] px-3 py-1.5 text-xs font-semibold text-gray-500 hover:bg-gray-100"
+                        >
+                          Cancel
+                        </button>
+                      </>
+                    ) : (
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => handleStartRename(chat)}
+                          disabled={editingChatId !== null || deletingChatId !== null}
+                          className="cursor-pointer rounded-[7px] px-3 py-1.5 text-xs font-semibold text-gray-500 hover:bg-gray-100 hover:text-blue-10 disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                          Rename
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setEditingChatId(null);
+                            setConfirmingDeleteId(chat.id);
+                          }}
+                          disabled={deletingChatId !== null}
+                          className="cursor-pointer rounded-[7px] px-3 py-1.5 text-xs font-semibold text-gray-500 hover:bg-red-50 hover:text-red-600 disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                          Delete
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => void handleOpenChat(chat.id)}
+                          disabled={openingChatId !== null || deletingChatId !== null}
+                          className="cursor-pointer rounded-[7px] px-3 py-1.5 text-sm font-semibold text-blue-10 hover:bg-blue-50 disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                          Open
+                        </button>
+                      </>
+                    )}
                   </div>
-                </button>
+                </div>
               ))}
             </div>
           )}
