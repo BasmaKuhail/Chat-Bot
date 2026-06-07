@@ -25,3 +25,49 @@ html {
   scroll-behavior: smooth;
   
 }
+
+.markdown-response pre code {
+  display: block;
+  background: transparent;
+  padding: 0;
+  color: inherit;
+}
+
+.markdown-response .hljs-keyword,
+.markdown-response .hljs-selector-tag,
+.markdown-response .hljs-literal,
+.markdown-response .hljs-section,
+.markdown-response .hljs-link {
+  color: #c084fc;
+}
+
+.markdown-response .hljs-string,
+.markdown-response .hljs-title,
+.markdown-response .hljs-name,
+.markdown-response .hljs-type,
+.markdown-response .hljs-attribute,
+.markdown-response .hljs-symbol,
+.markdown-response .hljs-bullet,
+.markdown-response .hljs-addition {
+  color: #86efac;
+}
+
+.markdown-response .hljs-number,
+.markdown-response .hljs-meta,
+.markdown-response .hljs-built_in,
+.markdown-response .hljs-builtin-name {
+  color: #fbbf24;
+}
+
+.markdown-response .hljs-comment,
+.markdown-response .hljs-quote,
+.markdown-response .hljs-deletion {
+  color: #94a3b8;
+  font-style: italic;
+}
+
+.markdown-response .hljs-variable,
+.markdown-response .hljs-template-variable,
+.markdown-response .hljs-params {
+  color: #93c5fd;
+}

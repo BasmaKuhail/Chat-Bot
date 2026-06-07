@@ -39,6 +39,7 @@ export default function ChatContainer(){
     const { showToast } = useToast();
     
     const bottomRef = useRef<HTMLDivElement>(null)
+    const activeRequestRef = useRef<AbortController | null>(null);
     
     useEffect(() => {
         bottomRef.current?.scrollIntoView({ behavior: "smooth" })
@@ -89,6 +90,8 @@ export default function ChatContainer(){
         if (isLoading) return;
 
         setIsLoading(true);
+        const abortController = new AbortController();
+        activeRequestRef.current = abortController;
         let targetResponseIndex = responseIndex;
         let responseStarted = responseIndex !== undefined;
 
@@ -118,6 +121,7 @@ export default function ChatContainer(){
             const res = await fetch("/api/chat", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
+                signal: abortController.signal,
                 body: JSON.stringify({
                     message: prompt,
                     chatId: currentChatId ?? undefined,
@@ -203,6 +207,45 @@ export default function ChatContainer(){
                 }
             }
         } catch (error) {
+            if (abortController.signal.aborted) {
+                if (targetResponseIndex !== undefined) {
+                    const cancelledResponseIndex = targetResponseIndex;
+
+                    setChat((currentChat) => {
+                        const next = [...currentChat];
+                        const response = next[cancelledResponseIndex];
+
+                        if (response?.type !== "response") {
+                            return currentChat;
+                        }
+
+                        const versions = [...getResponseVersions(response)];
+                        const activeVersion = response.activeVersion ?? versions.length - 1;
+
+                        if (versions[activeVersion]) {
+                            return currentChat;
+                        }
+
+                        versions.splice(activeVersion, 1);
+
+                        if (!versions.length) {
+                            next.splice(cancelledResponseIndex, 1);
+                            return next;
+                        }
+
+                        const previousVersion = versions.length - 1;
+                        next[cancelledResponseIndex] = {
+                            ...response,
+                            text: versions[previousVersion],
+                            versions,
+                            activeVersion: previousVersion,
+                        };
+                        return next;
+                    });
+                }
+                return;
+            }
+
             console.error(error);
             const message =
                 error instanceof Error
@@ -223,6 +266,9 @@ export default function ChatContainer(){
                 ]);
             }
         } finally {
+            if (activeRequestRef.current === abortController) {
+                activeRequestRef.current = null;
+            }
             setIsLoading(false);
             setStreamingResponseIndex(null);
         }
@@ -305,6 +351,10 @@ export default function ChatContainer(){
         });
     };
 
+    const handleCancel = () => {
+        activeRequestRef.current?.abort();
+    };
+
     return(
         <div className="flex w-full flex-col gap-6 px-0 pb-40 md:px-10">
             {chat.map((msg, i) => (
@@ -357,7 +407,11 @@ export default function ChatContainer(){
                     <TypingIndicator />
                 </div>
             )}
-            <Input onSend={handleOnSend}/>
+            <Input
+                onSend={handleOnSend}
+                isGenerating={isLoading}
+                onCancel={handleCancel}
+            />
             <div ref={bottomRef} />
         </div>
     )

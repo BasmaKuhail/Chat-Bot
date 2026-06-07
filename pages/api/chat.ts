@@ -189,6 +189,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
   }
 
   let stream;
+  const abortController = new AbortController();
+
+  res.on("close", () => {
+    if (!res.writableEnded) {
+      abortController.abort();
+    }
+  });
 
   try {
     stream = await openRouter.chat.completions.create({
@@ -206,8 +213,14 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
         },
       ],
       stream: true,
+    }, {
+      signal: abortController.signal,
     });
   } catch (error: unknown) {
+    if (abortController.signal.aborted || res.destroyed) {
+      return;
+    }
+
     const userError = getUserFacingError(error);
 
     // Log details on the server for debugging, but return only a safe message to the client.
@@ -274,6 +287,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
       saveError,
     });
   } catch (error: unknown) {
+    if (abortController.signal.aborted || res.destroyed) {
+      return;
+    }
+
     const userError = getUserFacingError(error);
 
     console.error("--- OPENROUTER STREAM ERROR START ---");
@@ -286,6 +303,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
       message: userError.reply,
     });
   } finally {
-    res.end();
+    if (!res.destroyed) {
+      res.end();
+    }
   }
 }
