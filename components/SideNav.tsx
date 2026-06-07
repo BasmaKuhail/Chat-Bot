@@ -162,8 +162,8 @@ export default function SideNav(){
                     isMobileNavOpen ? "translate-x-0" : "-translate-x-full"
                 }`}
             >
-                <div className="flex items-center justify-between">
-                    <Image src={logo} alt="logo" width={150}/>
+                <div className="flex items-center justify-center">
+                    <Image src={logo} alt="logo" width={200}/>
                     <button
                         type="button"
                         onClick={closeMobileNav}

@@ -15,6 +15,7 @@ type ChatDetailResponse = {
     title: string;
     messages: LoadedMessage[];
   };
+  title?: string;
   message?: string;
 };
 
@@ -26,8 +27,8 @@ export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse<ChatDetailResponse>
 ) {
-  if (req.method !== "GET") {
-    res.setHeader("Allow", "GET");
+  if (!["GET", "PATCH", "DELETE"].includes(req.method ?? "")) {
+    res.setHeader("Allow", "GET, PATCH, DELETE");
     return res.status(405).json({ message: "Method Not Allowed" });
   }
 
@@ -63,6 +64,74 @@ export default async function handler(
 
     if (chatError || !chat) {
       return res.status(404).json({ message: "Chat was not found." });
+    }
+
+    if (req.method === "PATCH") {
+      const title =
+        typeof req.body?.title === "string"
+          ? req.body.title.trim().replace(/\s+/g, " ")
+          : "";
+
+      if (!title) {
+        return res.status(400).json({ message: "Chat title is required." });
+      }
+
+      if (title.length > 100) {
+        return res.status(400).json({
+          message: "Chat title must be 100 characters or fewer.",
+        });
+      }
+
+      const { error } = await supabase
+        .from("chats")
+        .update({
+          title,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", chat.id)
+        .eq("user_id", user.id);
+
+      if (error) {
+        throw new Error(error.message);
+      }
+
+      return res.status(200).json({
+        message: "Chat renamed successfully.",
+        title,
+      });
+    }
+
+    if (req.method === "DELETE") {
+      const { error: deleteChatError } = await supabase
+        .from("chats")
+        .delete()
+        .eq("id", chat.id)
+        .eq("user_id", user.id);
+
+      if (deleteChatError?.code === "23503") {
+        const { error: deleteMessagesError } = await supabase
+          .from("messages")
+          .delete()
+          .eq("chat_id", chat.id);
+
+        if (deleteMessagesError) {
+          throw new Error(deleteMessagesError.message);
+        }
+
+        const { error: retryDeleteError } = await supabase
+          .from("chats")
+          .delete()
+          .eq("id", chat.id)
+          .eq("user_id", user.id);
+
+        if (retryDeleteError) {
+          throw new Error(retryDeleteError.message);
+        }
+      } else if (deleteChatError) {
+        throw new Error(deleteChatError.message);
+      }
+
+      return res.status(200).json({ message: "Chat deleted successfully." });
     }
 
     const { data: messages, error: messagesError } = await supabase
