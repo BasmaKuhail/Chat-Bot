@@ -415,6 +415,23 @@ export default function ChatContainer(){
         activeRequestRef.current?.abort();
     };
 
+    const closeSearchMatches = () => {
+        const query = { ...router.query };
+        delete query.highlight;
+
+        void router.replace(
+            {
+                pathname: router.pathname,
+                query,
+            },
+            undefined,
+            {
+                shallow: true,
+                scroll: false,
+            }
+        );
+    };
+
     const focusMatch = (nextIndex: number) => {
         const matches = chatContainerRef.current?.querySelectorAll<HTMLElement>(
             "[data-chat-search-match]"
@@ -465,6 +482,16 @@ export default function ChatContainer(){
                             title="Next match"
                         >
                             &#8595;
+                        </button>
+                        <span className="mx-0.5 h-5 w-px bg-gray-200" />
+                        <button
+                            type="button"
+                            onClick={closeSearchMatches}
+                            className="flex h-8 w-8 cursor-pointer items-center justify-center rounded-[6px] text-lg font-semibold text-gray-500 transition hover:bg-gray-100 hover:text-gray-800"
+                            aria-label="Close search matches"
+                            title="Close search"
+                        >
+                            x
                         </button>
                     </div>
                 </div>
