@@ -26,6 +26,11 @@ html {
   
 }
 
+[data-chat-search-match].chat-search-match-active {
+  background-color: #86efac;
+  box-shadow: 0 0 0 2px #22c55e;
+}
+
 .markdown-response pre code {
   display: block;
   background: transparent;

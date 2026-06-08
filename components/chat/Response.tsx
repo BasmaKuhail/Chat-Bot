@@ -10,6 +10,7 @@ import rehypeHighlight from "rehype-highlight";
 import TypingIndicator from "./TypingIndicator";
 import NextIcon from "@/public/icons/Next";
 import RegenerateIcon from "@/public/icons/Regenerate";
+import { highlightText } from "./HighlightedText";
 
 function getTextContent(node: ReactNode): string {
   if (typeof node === "string" || typeof node === "number") {
@@ -67,6 +68,7 @@ function CodeBlock({ children }: { children?: ReactNode }) {
 
 type ResponseProps = {
   text: string;
+  highlightQuery?: string;
   isStreaming?: boolean;
   versionIndex?: number;
   versionCount?: number;
@@ -77,6 +79,7 @@ type ResponseProps = {
 
 export default function Response({
   text,
+  highlightQuery = "",
   isStreaming = false,
   versionIndex = 0,
   versionCount = 1,
@@ -102,27 +105,33 @@ export default function Response({
             components={{
               h1: ({ children }) => (
                 <h1 className="mb-3 mt-5 text-2xl font-bold text-gray-950 first:mt-0">
-                  {children}
+                  {highlightText(children, highlightQuery)}
                 </h1>
               ),
               h2: ({ children }) => (
                 <h2 className="mb-2 mt-5 text-xl font-bold text-gray-950 first:mt-0">
-                  {children}
+                  {highlightText(children, highlightQuery)}
                 </h2>
               ),
               h3: ({ children }) => (
                 <h3 className="mb-2 mt-4 text-lg font-bold text-gray-900 first:mt-0">
-                  {children}
+                  {highlightText(children, highlightQuery)}
                 </h3>
               ),
-              p: ({ children }) => <p className="my-2 first:mt-0 last:mb-0">{children}</p>,
+              p: ({ children }) => (
+                <p className="my-2 first:mt-0 last:mb-0">
+                  {highlightText(children, highlightQuery)}
+                </p>
+              ),
               ul: ({ children }) => (
                 <ul className="my-3 list-disc space-y-1 pl-6">{children}</ul>
               ),
               ol: ({ children }) => (
                 <ol className="my-3 list-decimal space-y-1 pl-6">{children}</ol>
               ),
-              li: ({ children }) => <li className="pl-1">{children}</li>,
+              li: ({ children }) => (
+                <li className="pl-1">{highlightText(children, highlightQuery)}</li>
+              ),
               strong: ({ children }) => (
                 <strong className="font-bold text-gray-950">{children}</strong>
               ),
@@ -153,15 +162,17 @@ export default function Response({
               ),
               th: ({ children }) => (
                 <th className="border-b border-gray-200 px-4 py-3 font-bold">
-                  {children}
+                  {highlightText(children, highlightQuery)}
                 </th>
               ),
               td: ({ children }) => (
                 <td className="border-b border-gray-100 px-4 py-3 align-top last:border-b-0">
-                  {children}
+                  {highlightText(children, highlightQuery)}
                 </td>
               ),
-              pre: CodeBlock,
+              pre: ({ children }) => (
+                <CodeBlock>{highlightText(children, highlightQuery)}</CodeBlock>
+              ),
               code: ({ className, children, ...props }) => {
                 const isCodeBlock =
                   Boolean(className?.includes("language-")) ||
@@ -176,7 +187,7 @@ export default function Response({
                     }
                     {...props}
                   >
-                    {children}
+                    {highlightText(children, highlightQuery)}
                   </code>
                 );
               },

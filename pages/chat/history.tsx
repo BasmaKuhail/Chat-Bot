@@ -5,11 +5,14 @@ import type { Message } from "@/types/messages";
 import { useRouter } from "next/router";
 import { useCallback, useEffect, useState } from "react";
 
+const SEARCH_DEBOUNCE_MS = 300;
+
 type ChatSummary = {
   id: string;
   title: string;
   lastMessageAt: string | null;
   updatedAt: string | null;
+  hasContentMatch?: boolean;
 };
 
 type ChatHistoryMessage = {
@@ -103,12 +106,22 @@ export default function ChatHistoryPage() {
   const [savingChatId, setSavingChatId] = useState<string | null>(null);
   const [deletingChatId, setDeletingChatId] = useState<string | null>(null);
   const [confirmingDeleteId, setConfirmingDeleteId] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
 
-  const loadHistory = useCallback(async () => {
+  const loadHistory = useCallback(async (query = "", signal?: AbortSignal) => {
     setIsLoading(true);
 
     try {
-      const response = await fetch("/api/chats");
+      const searchParams = new URLSearchParams();
+
+      if (query.trim()) {
+        searchParams.set("q", query.trim());
+      }
+
+      const url = searchParams.size
+        ? `/api/chats?${searchParams.toString()}`
+        : "/api/chats";
+      const response = await fetch(url, { signal });
       const result = await response.json();
 
       if (!response.ok) {
@@ -117,6 +130,10 @@ export default function ChatHistoryPage() {
 
       setChats(result.chats ?? []);
     } catch (error) {
+      if (error instanceof DOMException && error.name === "AbortError") {
+        return;
+      }
+
       showToast({
         type: "error",
         message:
@@ -125,27 +142,45 @@ export default function ChatHistoryPage() {
             : "Chat history could not be loaded.",
       });
     } finally {
-      setIsLoading(false);
+      if (!signal?.aborted) {
+        setIsLoading(false);
+      }
     }
   }, [showToast]);
 
   useEffect(() => {
-    loadHistory();
-  }, [loadHistory]);
+    const controller = new AbortController();
+    const timeoutId = window.setTimeout(() => {
+      void loadHistory(searchQuery, controller.signal);
+    }, searchQuery ? SEARCH_DEBOUNCE_MS : 0);
 
-  const handleOpenChat = async (chatId: string) => {
-    setOpeningChatId(chatId);
+    return () => {
+      window.clearTimeout(timeoutId);
+      controller.abort();
+    };
+  }, [loadHistory, searchQuery]);
+
+  const handleOpenChat = async (chat: ChatSummary) => {
+    setOpeningChatId(chat.id);
 
     try {
-      const response = await fetch(`/api/chats/${chatId}`);
+      const response = await fetch(`/api/chats/${chat.id}`);
       const result = await response.json();
 
       if (!response.ok || !result.chat) {
         throw new Error(result.message || "Chat could not be loaded.");
       }
 
-      loadChat(chatId, toUiMessages(result.chat.messages ?? []));
-      router.push("/");
+      loadChat(chat.id, toUiMessages(result.chat.messages ?? []));
+      const highlight = chat.hasContentMatch ? searchQuery.trim() : "";
+      await router.push(
+        highlight
+          ? {
+              pathname: "/",
+              query: { highlight },
+            }
+          : "/"
+      );
     } catch (error) {
       showToast({
         type: "error",
@@ -191,6 +226,7 @@ export default function ChatHistoryPage() {
         )
       );
       setEditingChatId(null);
+      await loadHistory(searchQuery);
       showToast({ type: "success", message: "Chat renamed successfully." });
     } catch (error) {
       showToast({
@@ -246,17 +282,43 @@ export default function ChatHistoryPage() {
               <span className="text-xs font-semibold uppercase text-gray-400">
                 {isLoading
                   ? "Loading"
-                  : `${chats.length} saved ${chats.length === 1 ? "chat" : "chats"}`}
+                  : searchQuery.trim()
+                    ? `${chats.length} matching ${chats.length === 1 ? "chat" : "chats"}`
+                    : `${chats.length} saved ${chats.length === 1 ? "chat" : "chats"}`}
               </span>
             </div>
             <button
               type="button"
-              onClick={loadHistory}
+              onClick={() => void loadHistory(searchQuery)}
               disabled={isLoading}
               className="w-full cursor-pointer rounded-[8px] border border-gray-200 bg-white-0 px-4 py-2 text-sm font-semibold text-gray-600 shadow-sm transition hover:border-blue-10 hover:text-blue-10 disabled:cursor-not-allowed disabled:opacity-60 md:w-auto"
             >
               {isLoading ? "Refreshing..." : "Refresh"}
             </button>
+          </div>
+
+          <div className="relative w-full">
+            <label htmlFor="chat-search" className="sr-only">
+              Search chats by title or message content
+            </label>
+            <input
+              id="chat-search"
+              type="search"
+              value={searchQuery}
+              onChange={(event) => setSearchQuery(event.target.value)}
+              placeholder="Search by title or message content..."
+              maxLength={100}
+              className="w-full rounded-[8px] border border-gray-200 bg-white-0 px-4 py-3 pr-20 text-sm text-gray-800 shadow-sm outline-none transition placeholder:text-gray-400 focus:border-blue-10 focus:ring-2 focus:ring-blue-10/10"
+            />
+            {searchQuery && (
+              <button
+                type="button"
+                onClick={() => setSearchQuery("")}
+                className="absolute right-3 top-1/2 -translate-y-1/2 cursor-pointer rounded-[6px] px-2 py-1 text-xs font-semibold text-gray-500 hover:bg-gray-100 hover:text-gray-800"
+              >
+                Clear
+              </button>
+            )}
           </div>
 
           {isLoading ? (
@@ -270,6 +332,20 @@ export default function ChatHistoryPage() {
                   <div className="h-3 w-1/3 animate-pulse rounded bg-gray-100" />
                 </div>
               ))}
+            </div>
+          ) : searchQuery.trim() && chats.length === 0 ? (
+            <div className="flex min-h-[260px] flex-col items-center justify-center gap-3 rounded-[8px] border border-dashed border-gray-300 bg-white-0 p-8 text-center">
+              <h2 className="text-lg font-bold text-gray-800">No matching chats</h2>
+              <p className="max-w-md text-sm leading-6 text-gray-500">
+                No titles or message content matched &quot;{searchQuery.trim()}&quot;.
+              </p>
+              <button
+                type="button"
+                onClick={() => setSearchQuery("")}
+                className="mt-2 cursor-pointer rounded-[8px] border border-gray-200 bg-white-0 px-4 py-2 text-sm font-semibold text-gray-600 transition hover:border-blue-10 hover:text-blue-10"
+              >
+                Clear Search
+              </button>
             </div>
           ) : chats.length === 0 ? (
             <div className="flex min-h-[260px] flex-col items-center justify-center gap-3 rounded-[8px] border border-dashed border-gray-300 bg-white-0 p-8 text-center">
@@ -332,7 +408,7 @@ export default function ChatHistoryPage() {
                     ) : (
                       <button
                         type="button"
-                        onClick={() => void handleOpenChat(chat.id)}
+                        onClick={() => void handleOpenChat(chat)}
                         disabled={openingChatId !== null || deletingChatId !== null}
                         className="line-clamp-1 cursor-pointer text-left text-base font-bold text-gray-800 transition hover:text-blue-20 disabled:cursor-not-allowed disabled:opacity-70"
                       >
@@ -393,7 +469,7 @@ export default function ChatHistoryPage() {
                         </button>
                         <button
                           type="button"
-                          onClick={() => void handleOpenChat(chat.id)}
+                          onClick={() => void handleOpenChat(chat)}
                           disabled={openingChatId !== null || deletingChatId !== null}
                           className="cursor-pointer rounded-[7px] px-3 py-1.5 text-sm font-semibold text-blue-10 hover:bg-blue-50 disabled:cursor-not-allowed disabled:opacity-50"
                         >

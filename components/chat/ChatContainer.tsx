@@ -8,6 +8,7 @@ import { useChat } from "@/context/chatContext"
 import { useToast } from "@/context/toastContext";
 import type { Message, ResponseMessage } from "@/types/messages";
 import ExportChat from "./ExportChat";
+import { useRouter } from "next/router";
 
 type ChatStreamEvent =
     | { type: "delta"; text: string }
@@ -38,13 +39,71 @@ function getResponseVersions(message: ResponseMessage) {
 export default function ChatContainer(){
     const {chat, setChat, currentChatId, setCurrentChatId} = useChat();
     const { showToast } = useToast();
+    const router = useRouter();
     
+    const chatContainerRef = useRef<HTMLDivElement>(null)
     const bottomRef = useRef<HTMLDivElement>(null)
     const activeRequestRef = useRef<AbortController | null>(null);
-    
+    const [activeMatchIndex, setActiveMatchIndex] = useState(0);
+    const [matchCount, setMatchCount] = useState(0);
+
+    const highlightQuery =
+        router.isReady && typeof router.query.highlight === "string"
+            ? router.query.highlight.trim()
+            : "";
+
     useEffect(() => {
-        bottomRef.current?.scrollIntoView({ behavior: "smooth" })
-    }, [chat])
+        if (!highlightQuery) {
+            setActiveMatchIndex(0);
+            setMatchCount(0);
+            bottomRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
+            return;
+        }
+
+        const animationFrame = window.requestAnimationFrame(() => {
+            const matches = chatContainerRef.current?.querySelectorAll<HTMLElement>(
+                "[data-chat-search-match]"
+            );
+            const nextMatchCount = matches?.length ?? 0;
+
+            setMatchCount(nextMatchCount);
+            setActiveMatchIndex(0);
+        });
+
+        return () => window.cancelAnimationFrame(animationFrame);
+    }, [chat, currentChatId, highlightQuery])
+
+    useEffect(() => {
+        if (!highlightQuery || matchCount === 0) {
+            return;
+        }
+
+        const animationFrame = window.requestAnimationFrame(() => {
+            const matches = chatContainerRef.current?.querySelectorAll<HTMLElement>(
+                "[data-chat-search-match]"
+            );
+
+            if (!matches?.length) {
+                return;
+            }
+
+            const normalizedIndex =
+                Math.min(activeMatchIndex, matches.length - 1);
+
+            matches.forEach((match, index) => {
+                match.classList.toggle(
+                    "chat-search-match-active",
+                    index === normalizedIndex
+                );
+            });
+            matches[normalizedIndex]?.scrollIntoView({
+                behavior: "smooth",
+                block: "center",
+            });
+        });
+
+        return () => window.cancelAnimationFrame(animationFrame);
+    }, [activeMatchIndex, highlightQuery, matchCount]);
 
     const [isLoading, setIsLoading] = useState(false);
     const [streamingResponseIndex, setStreamingResponseIndex] = useState<number | null>(null);
@@ -356,8 +415,87 @@ export default function ChatContainer(){
         activeRequestRef.current?.abort();
     };
 
+    const closeSearchMatches = () => {
+        const query = { ...router.query };
+        delete query.highlight;
+
+        void router.replace(
+            {
+                pathname: router.pathname,
+                query,
+            },
+            undefined,
+            {
+                shallow: true,
+                scroll: false,
+            }
+        );
+    };
+
+    const focusMatch = (nextIndex: number) => {
+        const matches = chatContainerRef.current?.querySelectorAll<HTMLElement>(
+            "[data-chat-search-match]"
+        );
+
+        if (!matches?.length) {
+            return;
+        }
+
+        const normalizedIndex =
+            (nextIndex + matches.length) % matches.length;
+
+        setActiveMatchIndex(normalizedIndex);
+    };
+
     return(
-        <div className="flex w-full flex-col gap-6 px-0 pb-40 md:px-10">
+        <div
+            ref={chatContainerRef}
+            className="flex w-full flex-col gap-6 px-0 pb-40 md:px-10"
+        >
+            {highlightQuery && matchCount > 0 && (
+                <div className="sticky top-4 z-30 flex justify-end">
+                    <div
+                        className="flex items-center gap-1 rounded-[8px] border border-gray-200 bg-white-0 p-1.5 shadow-md"
+                        role="group"
+                        aria-label={`Search matches for ${highlightQuery}`}
+                    >
+                        <span
+                            className="min-w-16 px-2 text-center text-xs font-semibold text-gray-600"
+                            aria-live="polite"
+                        >
+                            {activeMatchIndex + 1} / {matchCount}
+                        </span>
+                        <button
+                            type="button"
+                            onClick={() => focusMatch(activeMatchIndex - 1)}
+                            className="flex h-8 w-8 cursor-pointer items-center justify-center rounded-[6px] text-lg font-semibold text-gray-500 transition hover:bg-gray-100 hover:text-blue-10"
+                            aria-label="Previous match"
+                            title="Previous match"
+                        >
+                            &#8593;
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => focusMatch(activeMatchIndex + 1)}
+                            className="flex h-8 w-8 cursor-pointer items-center justify-center rounded-[6px] text-lg font-semibold text-gray-500 transition hover:bg-gray-100 hover:text-blue-10"
+                            aria-label="Next match"
+                            title="Next match"
+                        >
+                            &#8595;
+                        </button>
+                        <span className="mx-0.5 h-5 w-px bg-gray-200" />
+                        <button
+                            type="button"
+                            onClick={closeSearchMatches}
+                            className="flex h-8 w-8 cursor-pointer items-center justify-center rounded-[6px] text-lg font-semibold text-gray-500 transition hover:bg-gray-100 hover:text-gray-800"
+                            aria-label="Close search matches"
+                            title="Close search"
+                        >
+                            x
+                        </button>
+                    </div>
+                </div>
+            )}
             <ExportChat
                 chat={chat}
                 disabled={
@@ -372,6 +510,7 @@ export default function ChatContainer(){
                             <div className="flex w-full max-w-[88%] justify-end md:max-w-[75%]">
                                 <Prompt
                                     text={msg.text}
+                                    highlightQuery={highlightQuery}
                                     disabled={isLoading}
                                     onEdit={
                                         chat[i + 1]?.type === "response"
@@ -385,6 +524,7 @@ export default function ChatContainer(){
                         <div className="w-full max-w-[820px]">
                             <Response
                                 text={msg.text}
+                                highlightQuery={highlightQuery}
                                 isStreaming={streamingResponseIndex === i}
                                 versionIndex={msg.activeVersion ?? 0}
                                 versionCount={getResponseVersions(msg).length}
