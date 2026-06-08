@@ -6,13 +6,18 @@ import Input from "../Input";
 import { useEffect, useRef } from "react"
 import { useChat } from "@/context/chatContext"
 import { useToast } from "@/context/toastContext";
-import type { Message, ResponseMessage } from "@/types/messages";
+import type { ChatAttachment, Message, ResponseMessage } from "@/types/messages";
 import ExportChat from "./ExportChat";
 import { useRouter } from "next/router";
 
 type ChatStreamEvent =
     | { type: "delta"; text: string }
-    | { type: "done"; chatId?: string; saveError?: string }
+    | {
+        type: "done";
+        chatId?: string;
+        saveError?: string;
+        attachmentContextToken?: string;
+    }
     | { type: "error"; message: string };
 
 function getConversationHistory(chat: ReturnType<typeof useChat>["chat"]) {
@@ -30,6 +35,21 @@ function getConversationHistory(chat: ReturnType<typeof useChat>["chat"]) {
             role: message.type === "prompt" ? "user" : "assistant",
             content: message.text,
         }));
+}
+
+function getLatestContextAttachments(chat: Message[]) {
+    for (let index = chat.length - 1; index >= 0; index -= 1) {
+        const message = chat[index];
+
+        if (message.type === "prompt" && message.attachments?.length) {
+            return {
+                attachments: message.attachments,
+                token: message.attachmentContextToken,
+            };
+        }
+    }
+
+    return { attachments: [], token: undefined };
 }
 
 function getResponseVersions(message: ResponseMessage) {
@@ -140,12 +160,16 @@ export default function ChatContainer(){
         contextChat,
         responseIndex,
         savePrompt,
+        attachments = [],
+        attachmentContextToken,
     }: {
         prompt: string;
         displayChat: Message[];
         contextChat: Message[];
         responseIndex?: number;
         savePrompt: boolean;
+        attachments?: ChatAttachment[];
+        attachmentContextToken?: string;
     }) => {
         if (isLoading) return;
 
@@ -153,10 +177,12 @@ export default function ChatContainer(){
         const abortController = new AbortController();
         activeRequestRef.current = abortController;
         let targetResponseIndex = responseIndex;
+        const targetPromptIndex =
+            responseIndex === undefined ? displayChat.length : responseIndex - 1;
         let responseStarted = responseIndex !== undefined;
 
         if (targetResponseIndex === undefined) {
-            setChat([...displayChat, { type: "prompt", text: prompt }]);
+            setChat([...displayChat, { type: "prompt", text: prompt, attachments }]);
         } else {
             const next = [...displayChat];
             const response = next[targetResponseIndex];
@@ -178,6 +204,20 @@ export default function ChatContainer(){
         }
 
         try {
+            const latestContext = getLatestContextAttachments(contextChat);
+            const isExistingAttachmentContext =
+                attachments.length > 0 && Boolean(attachmentContextToken);
+            const requestAttachments = isExistingAttachmentContext
+                ? []
+                : attachments;
+            const requestContextAttachments = isExistingAttachmentContext
+                ? attachments
+                : requestAttachments.length === 0
+                    ? latestContext.attachments
+                    : [];
+            const requestAttachmentContextToken =
+                attachmentContextToken ?? latestContext.token;
+
             const res = await fetch("/api/chat", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
@@ -186,6 +226,9 @@ export default function ChatContainer(){
                     message: prompt,
                     chatId: currentChatId ?? undefined,
                     history: getConversationHistory(contextChat),
+                    attachments: requestAttachments,
+                    contextAttachments: requestContextAttachments,
+                    attachmentContextToken: requestAttachmentContextToken,
                     savePrompt,
                 }),
             });
@@ -235,6 +278,24 @@ export default function ChatContainer(){
 
                     if (typeof event.chatId === "string") {
                         setCurrentChatId(event.chatId);
+                    }
+
+                    if (event.attachmentContextToken) {
+                        setChat((currentChat) => {
+                            const next = [...currentChat];
+                            const promptMessage = next[targetPromptIndex];
+
+                            if (promptMessage?.type !== "prompt") {
+                                return currentChat;
+                            }
+
+                            next[targetPromptIndex] = {
+                                ...promptMessage,
+                                attachmentContextToken:
+                                    event.attachmentContextToken,
+                            };
+                            return next;
+                        });
                     }
 
                     if (event.saveError) {
@@ -334,14 +395,15 @@ export default function ChatContainer(){
         }
     };
 
-    const handleOnSend = (userText: string) => {
-        if (!userText.trim() || isLoading) return;
+    const handleOnSend = (userText: string, attachments: ChatAttachment[]) => {
+        if ((!userText.trim() && attachments.length === 0) || isLoading) return;
 
         void generateResponse({
             prompt: userText.trim(),
             displayChat: chat,
             contextChat: chat,
             savePrompt: true,
+            attachments,
         });
     };
 
@@ -362,19 +424,28 @@ export default function ChatContainer(){
             contextChat: truncatedChat.slice(0, promptIndex),
             responseIndex,
             savePrompt: false,
+            attachments: prompt.attachments,
+            attachmentContextToken: prompt.attachmentContextToken,
         });
     };
 
     const handleEditPrompt = (promptIndex: number, text: string) => {
         const responseIndex = promptIndex + 1;
+        const originalPrompt = chat[promptIndex];
         const response = chat[responseIndex];
 
-        if (response?.type !== "response") {
+        if (
+            originalPrompt?.type !== "prompt" ||
+            response?.type !== "response"
+        ) {
             return;
         }
 
         const truncatedChat = chat.slice(0, responseIndex + 1);
-        truncatedChat[promptIndex] = { type: "prompt", text };
+        truncatedChat[promptIndex] = {
+            ...originalPrompt,
+            text,
+        };
 
         void generateResponse({
             prompt: text,
@@ -382,6 +453,8 @@ export default function ChatContainer(){
             contextChat: truncatedChat.slice(0, promptIndex),
             responseIndex,
             savePrompt: true,
+            attachments: originalPrompt.attachments,
+            attachmentContextToken: originalPrompt.attachmentContextToken,
         });
     };
 
@@ -510,6 +583,7 @@ export default function ChatContainer(){
                             <div className="flex w-full max-w-[88%] justify-end md:max-w-[75%]">
                                 <Prompt
                                     text={msg.text}
+                                    attachments={msg.attachments}
                                     highlightQuery={highlightQuery}
                                     disabled={isLoading}
                                     onEdit={

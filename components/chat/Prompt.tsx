@@ -1,8 +1,11 @@
 import { useState } from "react";
 import HighlightedText from "./HighlightedText";
+import type { ChatAttachment } from "@/types/messages";
+import { formatFileSize } from "@/lib/attachments";
 
 type PromptProps = {
     text: string;
+    attachments?: ChatAttachment[];
     highlightQuery?: string;
     disabled?: boolean;
     onEdit?: (text: string) => void;
@@ -10,6 +13,7 @@ type PromptProps = {
 
 export default function Prompt({
     text,
+    attachments = [],
     highlightQuery = "",
     disabled = false,
     onEdit,
@@ -65,6 +69,19 @@ export default function Prompt({
     return(
         <div className="group flex w-fit max-w-full flex-col items-end gap-2">
             <div className="whitespace-pre-wrap break-words rounded-b-[13px] rounded-l-[13px] bg-blue-100 p-4 px-6 text-gray-900 shadow-md">
+                {attachments.length > 0 && (
+                    <div className="mb-3 flex flex-wrap gap-2">
+                        {attachments.map((attachment) => (
+                            <span
+                                key={attachment.id}
+                                className="max-w-full truncate rounded-[7px] bg-white/70 px-2.5 py-1.5 text-xs font-semibold text-blue-20"
+                                title={`${attachment.name} (${formatFileSize(attachment.size)})`}
+                            >
+                                {attachment.name}
+                            </span>
+                        ))}
+                    </div>
+                )}
                 <HighlightedText query={highlightQuery}>{text}</HighlightedText>
             </div>
             {onEdit && (
