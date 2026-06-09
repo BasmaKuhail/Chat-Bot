@@ -571,6 +571,7 @@ export default function ChatContainer(){
             )}
             <ExportChat
                 chat={chat}
+                isGenerating={isLoading}
                 disabled={
                     isLoading ||
                     !chat.some((message) => message.type === "prompt")
