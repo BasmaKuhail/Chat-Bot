@@ -13,7 +13,7 @@ type ChatContextValue = {
 const initialChat: Message[] = [
     {
         type:"response", 
-        text:"Welcome to BrainRot, I'm your AI agient, feel free to share your thoughts with me, I'm here to assist you :)"
+        text:"Welcome to BrainBot, I'm your AI agent, feel free to share your thoughts with me, I'm here to assist you :)"
     }
 ]
 const ChatContext = createContext<ChatContextValue | null>(null);
