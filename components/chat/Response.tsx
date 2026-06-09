@@ -92,7 +92,7 @@ export default function Response({
   return (
     <div className="group/response flex w-fit max-w-full flex-col items-start">
       <div
-        className={`w-fit max-w-full rounded-b-[13px] rounded-r-[13px] border p-5 px-6 shadow-sm ${
+        className={`assistant-response w-fit max-w-full rounded-b-[13px] rounded-r-[13px] border p-5 px-6 shadow-sm ${
           isError
             ? "border-red-200 bg-red-50 text-red-700"
             : "border-gray-100 bg-white-0 text-gray-800"

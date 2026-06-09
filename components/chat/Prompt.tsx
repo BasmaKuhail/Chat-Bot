@@ -36,7 +36,7 @@ export default function Prompt({
 
     if (isEditing) {
         return (
-            <div className="flex w-full flex-col gap-2 rounded-b-[13px] rounded-l-[13px] bg-blue-100 p-3 shadow-md">
+            <div className="user-message flex w-full flex-col gap-2 rounded-b-[13px] rounded-l-[13px] bg-blue-100 p-3 shadow-md">
                 <textarea
                     value={draft}
                     onChange={(event) => setDraft(event.target.value)}
@@ -68,7 +68,7 @@ export default function Prompt({
 
     return(
         <div className="group flex w-fit max-w-full flex-col items-end gap-2">
-            <div className="whitespace-pre-wrap break-words rounded-b-[13px] rounded-l-[13px] bg-blue-100 p-4 px-6 text-gray-900 shadow-md">
+            <div className="user-message whitespace-pre-wrap break-words rounded-b-[13px] rounded-l-[13px] bg-blue-100 p-4 px-6 text-gray-900 shadow-md">
                 {attachments.length > 0 && (
                     <div className="mb-3 flex flex-wrap gap-2">
                         {attachments.map((attachment) => (

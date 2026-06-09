@@ -3,12 +3,14 @@ import ChatIcon from "@/public/icons/Chat";
 import HistoryIcon from "@/public/icons/History";
 import Profile from "@/public/icons/profile";
 import LogoutIcon from "@/public/icons/Logout";
+import ThemeIcon from "@/public/icons/Theme";
 
 import Btn from "./Btn";
 import SideNavItem from "./SideNavItem";
 import Image from "next/image";
 import logo from "@/public/images/logo.png"
 import { useChat } from "@/context/chatContext";
+import { useTheme } from "@/context/themeContext";
 import { useToast } from "@/context/toastContext";
 import { useRouter } from "next/router";
 import type { ReactNode } from "react";
@@ -24,6 +26,7 @@ type NavItem = {
 
 export default function SideNav(){
     const {resetChat} = useChat();
+    const { theme, toggleTheme } = useTheme();
     const { showToast } = useToast();
     const [isLoggedIn, setIsLoggedIn] = useState(false);
     const [isCheckingAuth, setIsCheckingAuth] = useState(true);
@@ -92,6 +95,11 @@ export default function SideNav(){
     const handleNavigate = (path: string) => {
         closeMobileNav();
         route.push(path);
+    };
+
+    const handleThemeChange = () => {
+        toggleTheme();
+        closeMobileNav();
     };
 
     const sideNavBtns: NavItem[] = [
@@ -201,6 +209,15 @@ export default function SideNav(){
                             {btn.title}
                         </SideNavItem>
                     )}
+                </div>
+                <div className="mt-auto border-t border-gray-200 pt-4">
+                    <SideNavItem isSelected={false} onClick={handleThemeChange}>
+                        <ThemeIcon
+                            className="text-current"
+                            isDark={theme === "dark"}
+                        />
+                        {theme === "dark" ? "Light theme" : "Dark theme"}
+                    </SideNavItem>
                 </div>
             </div>
         </>
