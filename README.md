@@ -3,7 +3,8 @@
 BrainBot is a full-stack AI chat application built to explore how modern AI-powered chat products work end to end. It focuses on real-time streamed responses, persistent conversations, authentication, file handling, responsive UI, and cost-aware API usage.
 
 Live demo:
-https://nextjs-brain-bot.vercel.app/
+https://basmakuhail-brain-bot.vercel.app
+
 
 ## Overview
 
@@ -159,4 +160,5 @@ http://localhost:3000
 ## Deployment
 
 The project is deployed on Vercel.
-Visit: https://nextjs-brain-bot.vercel.app/
+Visit: https://basmakuhail-brain-bot.vercel.app
+
