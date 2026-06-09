@@ -10,16 +10,24 @@ import { useToast } from "@/context/toastContext";
 type ExportChatProps = {
   chat: Message[];
   disabled?: boolean;
+  isGenerating?: boolean;
 };
 
 export default function ExportChat({
   chat,
   disabled = false,
+  isGenerating = false,
 }: ExportChatProps) {
   const { showToast } = useToast();
   const [isOpen, setIsOpen] = useState(false);
   const [isExportingPdf, setIsExportingPdf] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (disabled) {
+      setIsOpen(false);
+    }
+  }, [disabled]);
 
   useEffect(() => {
     if (!isOpen) {
@@ -51,6 +59,10 @@ export default function ExportChat({
   }, [isOpen]);
 
   const handlePdfExport = async () => {
+    if (disabled) {
+      return;
+    }
+
     setIsExportingPdf(true);
 
     try {
@@ -67,15 +79,18 @@ export default function ExportChat({
   return (
     <div
       ref={containerRef}
-      className="fixed bottom-36 right-4 z-30 md:right-10"
+      className={`fixed right-4 z-30 transition-[bottom] duration-200 md:right-10 ${
+        isGenerating ? "bottom-52 md:bottom-48" : "bottom-36"
+      }`}
     >
       <button
         type="button"
         onClick={() => setIsOpen((current) => !current)}
         disabled={disabled}
-        className="cursor-pointer rounded-full border border-gray-200 bg-white-0 px-4 py-2 text-xs font-semibold text-gray-600 shadow-lg transition hover:border-blue-10 hover:text-blue-10 disabled:cursor-not-allowed disabled:opacity-50"
+        className="cursor-pointer rounded-full border border-gray-200 bg-white-0 px-4 py-2 text-xs font-semibold text-gray-600 shadow-lg transition hover:border-blue-10 hover:text-blue-10 disabled:cursor-not-allowed disabled:border-gray-200 disabled:bg-gray-100 disabled:text-gray-400 disabled:opacity-80"
         aria-expanded={isOpen}
         aria-haspopup="menu"
+        title={isGenerating ? "Export is unavailable while a response is generating." : undefined}
       >
         Export chat
       </button>
@@ -89,6 +104,10 @@ export default function ExportChat({
             type="button"
             role="menuitem"
             onClick={() => {
+              if (disabled) {
+                return;
+              }
+
               exportChatAsMarkdown(chat);
               setIsOpen(false);
             }}
@@ -100,6 +119,10 @@ export default function ExportChat({
             type="button"
             role="menuitem"
             onClick={() => {
+              if (disabled) {
+                return;
+              }
+
               exportChatAsText(chat);
               setIsOpen(false);
             }}

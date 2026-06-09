@@ -46,6 +46,7 @@ export async function getAuthedUserFromRequest(
       return {
         ...(await getAuthedUser(accessToken)),
         accessToken,
+        refreshToken,
       };
     } catch {
       // Fall through and renew the session when a refresh token is available.
@@ -78,5 +79,6 @@ export async function getAuthedUserFromRequest(
     supabase: createAuthedSupabase(data.session.access_token),
     user: data.user,
     accessToken: data.session.access_token,
+    refreshToken: data.session.refresh_token,
   };
 }

@@ -2,6 +2,7 @@ import PlusIcon from "@/public/icons/Plus";
 import ChatIcon from "@/public/icons/Chat";
 import HistoryIcon from "@/public/icons/History";
 import Profile from "@/public/icons/profile";
+import LogoutIcon from "@/public/icons/Logout";
 
 import Btn from "./Btn";
 import SideNavItem from "./SideNavItem";
@@ -118,21 +119,33 @@ export default function SideNav(){
     ];
 
     if (!isCheckingAuth) {
-        sideNavBtns.splice(1, 0, isLoggedIn
-            ? {
-                title: "Logout",
-                image: <Profile className="text-current"/>,
-                isSelected: false,
-                onClick: handleLogout,
-            }
-            : {
+        if (isLoggedIn) {
+            sideNavBtns.splice(
+                1,
+                0,
+                {
+                    title: "Profile",
+                    image: <Profile className="text-current"/>,
+                    path: "/profile",
+                    isSelected: isSelected("/profile"),
+                    onClick: () => handleNavigate("/profile"),
+                },
+                {
+                    title: "Logout",
+                    image: <LogoutIcon className="text-current"/>,
+                    isSelected: false,
+                    onClick: handleLogout,
+                }
+            );
+        } else {
+            sideNavBtns.splice(1, 0, {
                 title: "Create Account",
-                image: <Profile className="text-current"/>,
+                image: <LogoutIcon className="text-current"/>,
                 path: "/auth",
                 isSelected: isSelected("/auth") || isSelected("/auth/login"),
                 onClick: () => handleNavigate("/auth"),
-            }
-        );
+            });
+        }
     }
     
     return(
