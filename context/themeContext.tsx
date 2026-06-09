@@ -19,11 +19,11 @@ const THEME_STORAGE_KEY = "brainbot-theme";
 const ThemeContext = createContext<ThemeContextValue | undefined>(undefined);
 
 export function ThemeProvider({ children }: { children: ReactNode }) {
-  const [theme, setTheme] = useState<Theme>("light");
+  const [theme, setTheme] = useState<Theme>("dark");
 
   useEffect(() => {
     const savedTheme = window.localStorage.getItem(THEME_STORAGE_KEY);
-    const nextTheme = savedTheme === "dark" ? "dark" : "light";
+    const nextTheme = savedTheme === "light" ? "light" : "dark";
 
     document.documentElement.dataset.theme = nextTheme;
     const timeoutId = window.setTimeout(() => setTheme(nextTheme), 0);
